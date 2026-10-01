@@ -204,10 +204,8 @@ def dean_instructions():
     memories = list_memories(80)
     tasks = list_tasks(80)
 
-    memory_text = "
-".join(f"- {m['content']}" for m in memories) or "- אין עדיין"
-    task_text = "
-".join(
+    memory_text = "\\n".join(f"- {m['content']}" for m in memories) or "- אין עדיין"
+    task_text = "\\n".join(
         f"- {'בוצע' if t['done'] else 'פתוח'}: {t['content']}" for t in tasks
     ) or "- אין כרגע"
 
