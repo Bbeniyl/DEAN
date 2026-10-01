@@ -510,7 +510,23 @@ let workTimer=null, workStarted=0;
 let voiceMode=false;
 let voiceRecognition=null;
 let voiceAudioContext=null;
+let activeVoiceSource=null;
+let activeSpeechController=null;
 const liveVoiceBtn=document.getElementById("liveVoice");
+
+function stopDeanSpeaking(){
+  if(activeSpeechController){try{activeSpeechController.abort();}catch(e){} activeSpeechController=null;}
+  if(activeVoiceSource){try{activeVoiceSource.stop(0);}catch(e){} activeVoiceSource=null;}
+  speechSynthesis.cancel();
+}
+
+function stopLiveConversation(){
+  voiceMode=false;
+  stopDeanSpeaking();
+  if(voiceRecognition){try{voiceRecognition.abort();}catch(e){} voiceRecognition=null;}
+  liveVoiceBtn.textContent="🗣️ שיחה חיה";
+  statusEl.textContent="✅ שיחה חיה נעצרה";
+}
 function setStage(stage,state="work"){const icon=state==="wait"?"🟡":state==="need"?"🔴":"🟢";statusEl.dataset.stage=stage;statusEl.dataset.state=state;statusEl.textContent=icon+" "+stage;}
 function startWork(stage="חושב ומבצע"){workStarted=Date.now(); if(workTimer)clearInterval(workTimer); statusEl.dataset.stage=stage; statusEl.dataset.state="work"; const tick=()=>{const s=Math.floor((Date.now()-workStarted)/1000); const m=String(Math.floor(s/60)).padStart(2,"0"); const ss=String(s%60).padStart(2,"0"); const icon=statusEl.dataset.state==="wait"?"🟡":statusEl.dataset.state==="need"?"🔴":"🟢"; statusEl.textContent=`${icon} ${statusEl.dataset.stage||"DEAN עובד"} · ${m}:${ss}`;}; tick(); workTimer=setInterval(tick,1000);}
 function finishWork(){
@@ -641,6 +657,8 @@ function preferredHebrewVoice(){
 
 async function speakForConversation(text,onDone){
   try{
+    stopDeanSpeaking();
+    activeSpeechController=new AbortController();
     if(!voiceAudioContext){
       voiceAudioContext=new (window.AudioContext||window.webkitAudioContext)();
     }
@@ -652,17 +670,21 @@ async function speakForConversation(text,onDone){
         "Content-Type":"application/json",
         "X-CSRF-Token":csrf
       },
-      body:JSON.stringify({text:cleanForSpeech(text)})
+      body:JSON.stringify({text:cleanForSpeech(text)}),
+      signal:activeSpeechController.signal
     });
     if(!r.ok)throw new Error("speech");
     const buf=await r.arrayBuffer();
     const decoded=await voiceAudioContext.decodeAudioData(buf.slice(0));
     const src=voiceAudioContext.createBufferSource();
+    activeVoiceSource=src;
     src.buffer=decoded;
     src.connect(voiceAudioContext.destination);
-    src.onended=()=>{ if(onDone)onDone(); };
+    src.onended=()=>{ activeVoiceSource=null; activeSpeechController=null; if(voiceMode && onDone)onDone(); };
     src.start(0);
   }catch(e){
+    activeSpeechController=null;
+    if(e && e.name==="AbortError")return;
     speechSynthesis.cancel();
     const u=new SpeechSynthesisUtterance(cleanForSpeech(text));
     const he=preferredHebrewVoice();
@@ -717,8 +739,12 @@ function startVoiceListening(){
 }
 
 liveVoiceBtn.onclick=()=>{
-  voiceMode=!voiceMode;
-  speechSynthesis.cancel();
+  if(voiceMode){
+    stopLiveConversation();
+    return;
+  }
+  voiceMode=true;
+  stopDeanSpeaking();
   if(voiceRecognition){ try{voiceRecognition.abort();}catch(e){} voiceRecognition=null; }
   if(voiceMode){
     liveVoiceBtn.textContent="⏹ סיים שיחה";
@@ -727,9 +753,6 @@ liveVoiceBtn.onclick=()=>{
     }
     voiceAudioContext.resume().catch(()=>{});
     startVoiceListening();
-  }else{
-    liveVoiceBtn.textContent="🗣️ שיחה חיה";
-    statusEl.textContent="✅ שיחה חיה הסתיימה";
   }
 };
 
