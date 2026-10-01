@@ -178,9 +178,7 @@ def maybe_handle_local_command(message):
         memories = list_memories(50)
         if not memories:
             return "עדיין אין לי זיכרונות קבועים שמורים."
-        return "הזיכרונות השמורים שלי:
-" + "
-".join(
+        return "הזיכרונות השמורים שלי:\\n" + "\\n".join(
             f"• {m['content']}" for m in memories
         )
 
@@ -196,9 +194,7 @@ def maybe_handle_local_command(message):
         tasks = list_tasks(50)
         if not tasks:
             return "אין כרגע משימות."
-        return "המשימות שלך:
-" + "
-".join(
+        return "המשימות שלך:\\n" + "\\n".join(
             f"{'✅' if t['done'] else '⬜'} {t['id']}. {t['content']}" for t in tasks
         )
 
