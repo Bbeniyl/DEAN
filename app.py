@@ -128,6 +128,37 @@ def load_history(limit=40):
         ).fetchall()[::-1]
     return [{"role": r["role"], "content": r["content"]} for r in rows]
 
+def load_relevant_history(message, recent_limit=16, scan_limit=500, max_extra=18):
+    """Return recent chat plus older messages that share meaningful words with the current message."""
+    recent = load_history(recent_limit)
+    with get_db() as con:
+        rows = con.execute(
+            db_sql("SELECT role,content FROM messages ORDER BY id DESC LIMIT ?"),
+            (scan_limit,)
+        ).fetchall()[::-1]
+    words = {
+        w.strip(".,!?;:()[]{}\"'־-").lower()
+        for w in str(message).split()
+        if len(w.strip(".,!?;:()[]{}\"'־-")) >= 3
+    }
+    stop = {
+        "אני","אתה","הוא","היא","זה","זאת","שלי","שלך","שלו","שלה","עם","אבל","עוד",
+        "עכשיו","כבר","כמו","מה","איך","למה","כן","לא","פה","שם","אותו","אותה","אותי",
+        "צריך","רוצה","יכול","יכולה","תעשה","תעשי","תגיד","תקשיב","תקשיבי","שאני","שאתה"
+    }
+    words -= stop
+    if not words:
+        return recent
+    scored = []
+    for idx, r in enumerate(rows[:-recent_limit] if len(rows) > recent_limit else []):
+        txt = r["content"].lower()
+        score = sum(1 for w in words if w in txt)
+        if score:
+            scored.append((score, idx, {"role": r["role"], "content": r["content"]}))
+    extras = [x[2] for x in sorted(scored, key=lambda x: (x[0], x[1]), reverse=True)[:max_extra]]
+    extras.reverse()
+    return extras + recent
+
 def list_memories(limit=100):
     with get_db() as con:
         rows = con.execute(
@@ -249,6 +280,8 @@ def dean_instructions():
 - אל תשתמש בסימוני Markdown כמו כוכביות, סולמיות, קווים תחתיים או הדגשות בתשובות לבניאל. כתוב טקסט נקי שמתאים להקראה בקול.
 - התאם את אורך התשובה לצורך. אל תעמיס סתם.
 - התייחס להיסטוריית השיחה ולזיכרונות המצורפים ולא כאילו זו פגישה ראשונה.
+- השיחות נשמרות עבורך. כשבניאל חוזר לנושא ישן, השתמש גם בקטעי שיחה ישנים רלוונטיים שמצורפים לקלט ולא רק בהודעות האחרונות.
+- אם פרט מופיע בשיחה ישנה ורלוונטית, אל תגיד "אני לא זוכר" רק מפני שהוא לא נאמר עכשיו.
 - אם חסר מידע מהותי, שאל. אל תמציא עובדות על בניאל.
 - אם טעית, תקן את עצמך.
 - חפש באינטרנט כשמידע עשוי להשתנות או כשנדרשת בדיקה עדכנית.
@@ -271,7 +304,7 @@ def dean_instructions():
 """.strip()
 
 def ask_dean(message):
-    history = load_history(12)
+    history = load_relevant_history(message)
     response = client.responses.create(
         model=MODEL,
         instructions=dean_instructions(),
