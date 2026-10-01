@@ -2,6 +2,7 @@ import os
 import sqlite3
 import secrets
 import time
+import threading
 from datetime import datetime, timezone
 from functools import wraps
 
@@ -91,7 +92,7 @@ def init_db():
 
 init_db()
 
-CURRENT_RELEASE_NOTES = """למידה אוטומטית מהשיחות; זיכרון קבוע וחיפוש הקשר; משימות עם סיום/פתיחה/מחיקה; תור אישורים לפעולות רגישות; עצירה מיידית של הקול והשיחה החיה; חיווי עבודה ושלבים."""
+CURRENT_RELEASE_NOTES = """זיכרון קבוע ב-Postgres וחיפוש הקשר; למידה אוטומטית ברקע בלי לעכב תשובה; משימות עם סיום/פתיחה/מחיקה; תור אישורים לפעולות רגישות; קול אחיד להקראה ולשיחה חיה; עצירה מיידית של קול ושיחה; חיווי עבודה ושלבים; זיהוי גרסה ועדכונים."""
 def register_release():
     try:
         with get_db() as con:
@@ -322,16 +323,6 @@ def maybe_handle_local_command(message):
         return "הזיכרונות השמורים שלי:\\n" + "\\n".join(
             f"• {m['content']}" for m in memories
         )
-
-    if text.startswith("סיימתי משימה ") or text.startswith("סמן משימה "):
-        raw = text.split(" ", 2)[-1].strip()
-        try:
-            task_id = int(raw)
-            with get_db() as con:
-                con.execute(db_sql("UPDATE tasks SET done=1 WHERE id=?"), (task_id,))
-            return f"סימנתי את משימה {task_id} כבוצעה."
-        except Exception:
-            return "תגיד לי את מספר המשימה שתרצה לסמן כבוצעה."
 
     task_prefixes = ["משימה ", "תוסיף משימה ", "תוסיף לי משימה "]
     for prefix in task_prefixes:
@@ -1003,6 +994,17 @@ def home():
         last_answer=last_answer
     )
 
+@app.get("/api/version")
+@require_login
+def api_version():
+    rel = latest_release()
+    return jsonify(
+        version=DEAN_VERSION,
+        release=rel,
+        database="postgres" if DATABASE_URL else "sqlite",
+        memory_persistent=bool(DATABASE_URL),
+    )
+
 @app.post("/api/logout")
 @require_csrf
 def logout():
@@ -1038,7 +1040,13 @@ def chat():
 
     save_message("user", message)
     save_message("assistant", answer)
-    auto_learn_from_turn(message, answer)
+    # Learning must never hold up the user's answer. Extract durable memory in the background.
+    threading.Thread(
+        target=auto_learn_from_turn,
+        args=(message, answer),
+        daemon=True,
+        name="dean-memory-learner",
+    ).start()
 
     return jsonify(answer=answer)
 
