@@ -389,6 +389,10 @@ const message=document.getElementById("message");
 const statusEl=document.getElementById("status");
 const csrf=document.getElementById("csrf").value;
 let last={{ last_answer|tojson }};
+let workTimer=null, workStarted=0;
+function startWork(){workStarted=Date.now(); if(workTimer)clearInterval(workTimer); const tick=()=>{const s=Math.floor((Date.now()-workStarted)/1000); const m=String(Math.floor(s/60)).padStart(2,"0"); const ss=String(s%60).padStart(2,"0"); statusEl.textContent=`🟢 DEAN עובד · ${m}:${ss}`;}; tick(); workTimer=setInterval(tick,1000);}
+function finishWork(){if(workTimer)clearInterval(workTimer); workTimer=null; statusEl.textContent="✅ הסתיים"; const u=new SpeechSynthesisUtterance("סיימתי"); u.lang="he-IL"; speechSynthesis.cancel(); speechSynthesis.speak(u);}
+function failWork(msg){if(workTimer)clearInterval(workTimer); workTimer=null; statusEl.textContent="🔴 "+msg;}
 
 box.scrollTop=box.scrollHeight;
 
@@ -422,7 +426,7 @@ form.addEventListener("submit",async(e)=>{
   addMessage("user",text);
   message.value="";
   message.style.height="auto";
-  statusEl.textContent="DEAN בודק וחושב...";
+  startWork();
   document.getElementById("send").disabled=true;
 
   try{
@@ -449,9 +453,9 @@ form.addEventListener("submit",async(e)=>{
 
     last=data.answer;
     addMessage("assistant",last);
-    statusEl.textContent="";
+    finishWork();
   }catch(err){
-    statusEl.textContent="שגיאה: "+err.message;
+    failWork("שגיאה: "+err.message);
     message.value=text;
   }finally{
     document.getElementById("send").disabled=false;
