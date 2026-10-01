@@ -110,17 +110,20 @@ def require_csrf(fn):
         return fn(*args, **kwargs)
     return wrapper
 
+def db_sql(q):
+    return q.replace("?", "%s") if DATABASE_URL else q
+
 def save_message(role, content):
     with get_db() as con:
         con.execute(
-            "INSERT INTO messages(role,content,created) VALUES(?,?,?)",
+            db_sql("INSERT INTO messages(role,content,created) VALUES(?,?,?)"),
             (role, content[:16000], utc_now())
         )
 
 def load_history(limit=40):
     with get_db() as con:
         rows = con.execute(
-            "SELECT role,content FROM messages ORDER BY id DESC LIMIT ?",
+            db_sql("SELECT role,content FROM messages ORDER BY id DESC LIMIT ?"),
             (limit,)
         ).fetchall()[::-1]
     return [{"role": r["role"], "content": r["content"]} for r in rows]
@@ -128,7 +131,7 @@ def load_history(limit=40):
 def list_memories(limit=100):
     with get_db() as con:
         rows = con.execute(
-            "SELECT id,content,created FROM memories ORDER BY id DESC LIMIT ?",
+            db_sql("SELECT id,content,created FROM memories ORDER BY id DESC LIMIT ?"),
             (limit,)
         ).fetchall()
     return [dict(r) for r in rows]
@@ -139,7 +142,7 @@ def save_memory(content):
         return False
     with get_db() as con:
         con.execute(
-            "INSERT OR IGNORE INTO memories(content,created) VALUES(?,?)",
+            ("INSERT INTO memories(content,created) VALUES(%s,%s) ON CONFLICT(content) DO NOTHING" if DATABASE_URL else "INSERT OR IGNORE INTO memories(content,created) VALUES(?,?)"),
             (clean[:2000], utc_now())
         )
     return True
@@ -150,7 +153,7 @@ def add_task(content):
         return False
     with get_db() as con:
         con.execute(
-            "INSERT INTO tasks(content,created) VALUES(?,?)",
+            db_sql("INSERT INTO tasks(content,created) VALUES(?,?)"),
             (clean[:1000], utc_now())
         )
     return True
@@ -158,7 +161,7 @@ def add_task(content):
 def list_tasks(limit=100):
     with get_db() as con:
         rows = con.execute(
-            "SELECT id,content,done,created FROM tasks ORDER BY id DESC LIMIT ?",
+            db_sql("SELECT id,content,done,created FROM tasks ORDER BY id DESC LIMIT ?"),
             (limit,)
         ).fetchall()
     return [dict(r) for r in rows]
@@ -505,7 +508,13 @@ document.getElementById("logout").onclick=async()=>{
 
 @app.get("/health")
 def health():
-    return jsonify(status="ok")
+    try:
+        with get_db() as con:
+            con.execute("SELECT 1").fetchone()
+        return jsonify(status="ok", database="postgres" if DATABASE_URL else "sqlite")
+    except Exception:
+        app.logger.exception("Database health check failed")
+        return jsonify(status="error", database="postgres" if DATABASE_URL else "sqlite"), 503
 
 @app.get("/login")
 def login():
@@ -531,11 +540,11 @@ def login_post():
 
     with get_db() as con:
         failures = con.execute(
-            """
+            db_sql("""
             SELECT COUNT(*) AS c
             FROM login_attempts
             WHERE ip=? AND ok=0 AND created>?
-            """,
+            """),
             (ip, time.time() - 900)
         ).fetchone()["c"]
 
@@ -551,7 +560,7 @@ def login_post():
 
     with get_db() as con:
         con.execute(
-            "INSERT INTO login_attempts(ip,ok,created) VALUES(?,?,?)",
+            db_sql("INSERT INTO login_attempts(ip,ok,created) VALUES(?,?,?)"),
             (ip, int(ok), time.time())
         )
 
