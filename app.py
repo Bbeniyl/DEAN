@@ -7,7 +7,7 @@ from functools import wraps
 
 from flask import (
     Flask, request, session, redirect, url_for,
-    jsonify, render_template_string, abort
+    jsonify, render_template_string, abort, Response
 )
 from openai import OpenAI
 
@@ -417,6 +417,7 @@ let last={{ last_answer|tojson }};
 let workTimer=null, workStarted=0;
 let voiceMode=false;
 let voiceRecognition=null;
+let voiceAudioContext=null;
 const liveVoiceBtn=document.getElementById("liveVoice");
 function startWork(){workStarted=Date.now(); if(workTimer)clearInterval(workTimer); const tick=()=>{const s=Math.floor((Date.now()-workStarted)/1000); const m=String(Math.floor(s/60)).padStart(2,"0"); const ss=String(s%60).padStart(2,"0"); statusEl.textContent=`🟢 DEAN עובד · ${m}:${ss}`;}; tick(); workTimer=setInterval(tick,1000);}
 function finishWork(){
@@ -543,17 +544,40 @@ function preferredHebrewVoice(){
       || null;
 }
 
-function speakForConversation(text,onDone){
-  speechSynthesis.cancel();
-  const u=new SpeechSynthesisUtterance(cleanForSpeech(text));
-  const he=preferredHebrewVoice();
-  if(he)u.voice=he;
-  u.lang="he-IL";
-  u.rate=1.02;
-  u.pitch=1.0;
-  u.onend=()=>{ if(onDone)onDone(); };
-  u.onerror=()=>{ if(onDone)onDone(); };
-  speechSynthesis.speak(u);
+async function speakForConversation(text,onDone){
+  try{
+    if(!voiceAudioContext){
+      voiceAudioContext=new (window.AudioContext||window.webkitAudioContext)();
+    }
+    if(voiceAudioContext.state==="suspended")await voiceAudioContext.resume();
+    const r=await fetch("/api/speech",{
+      method:"POST",
+      credentials:"same-origin",
+      headers:{
+        "Content-Type":"application/json",
+        "X-CSRF-Token":csrf
+      },
+      body:JSON.stringify({text:cleanForSpeech(text)})
+    });
+    if(!r.ok)throw new Error("speech");
+    const buf=await r.arrayBuffer();
+    const decoded=await voiceAudioContext.decodeAudioData(buf.slice(0));
+    const src=voiceAudioContext.createBufferSource();
+    src.buffer=decoded;
+    src.connect(voiceAudioContext.destination);
+    src.onended=()=>{ if(onDone)onDone(); };
+    src.start(0);
+  }catch(e){
+    speechSynthesis.cancel();
+    const u=new SpeechSynthesisUtterance(cleanForSpeech(text));
+    const he=preferredHebrewVoice();
+    if(he)u.voice=he;
+    u.lang="he-IL";
+    u.rate=1.02;
+    u.onend=()=>{ if(onDone)onDone(); };
+    u.onerror=()=>{ if(onDone)onDone(); };
+    speechSynthesis.speak(u);
+  }
 }
 
 function startVoiceListening(){
@@ -603,6 +627,10 @@ liveVoiceBtn.onclick=()=>{
   if(voiceRecognition){ try{voiceRecognition.abort();}catch(e){} voiceRecognition=null; }
   if(voiceMode){
     liveVoiceBtn.textContent="⏹ סיים שיחה";
+    if(!voiceAudioContext){
+      voiceAudioContext=new (window.AudioContext||window.webkitAudioContext)();
+    }
+    voiceAudioContext.resume().catch(()=>{});
     startVoiceListening();
   }else{
     liveVoiceBtn.textContent="🗣️ שיחה חיה";
@@ -637,6 +665,28 @@ document.getElementById("logout").onclick=async()=>{
 </body>
 </html>
 """
+
+@app.post("/api/speech")
+@require_login
+def api_speech():
+    supplied = request.headers.get("X-CSRF-Token", "")
+    if not supplied or not secrets.compare_digest(supplied, csrf_token()):
+        abort(403)
+    data = request.get_json(silent=True) or {}
+    text = (data.get("text") or "").strip()
+    if not text:
+        return jsonify(error="חסר טקסט להקראה"), 400
+    try:
+        audio = client.audio.speech.create(
+            model="gpt-4o-mini-tts",
+            voice="cedar",
+            input=text[:4096],
+            instructions="Speak natural conversational Hebrew. Warm, relaxed, human, friendly, not announcer-like, not robotic. Use natural Israeli pacing and light expressive intonation."
+        )
+        return Response(audio.content, mimetype="audio/mpeg")
+    except Exception:
+        app.logger.exception("Speech generation failed")
+        return jsonify(error="שגיאה ביצירת קול"), 500
 
 @app.get("/health")
 def health():
