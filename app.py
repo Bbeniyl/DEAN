@@ -167,6 +167,55 @@ def list_memories(limit=100):
         ).fetchall()
     return [dict(r) for r in rows]
 
+def relevant_memories(message, limit=24):
+    memories = list_memories(300)
+    words = {w.strip(".,!?;:()[]{}\\\"'־-").lower() for w in str(message).split() if len(w.strip(".,!?;:()[]{}\\\"'־-")) >= 3}
+    if not words:
+        return memories[:limit]
+    scored = []
+    for i, m in enumerate(memories):
+        txt = m["content"].lower()
+        score = sum(1 for w in words if w in txt)
+        if score:
+            scored.append((score, -i, m))
+    picked = [x[2] for x in sorted(scored, reverse=True)[:limit]]
+    if len(picked) < 8:
+        seen = {m["id"] for m in picked}
+        picked += [m for m in memories if m["id"] not in seen][:8-len(picked)]
+    return picked
+
+def auto_learn_from_turn(user_text, assistant_text):
+    """Extract durable, useful personal context automatically. Never store secrets."""
+    try:
+        existing = "\\n".join(f"- {m['content']}" for m in list_memories(120))
+        prompt = f"""חלץ מהשיחה רק עובדות יציבות ושימושיות על בניאל שכדאי לזכור לשיחות עתידיות:
+העדפות, מטרות, קשרים משפחתיים, שגרה, פרויקטים, החלטות קבועות ודפוסים חשובים.
+אל תשמור סיסמאות, מפתחות, מספרי כרטיס, קודים, פרטי התחברות, מידע רגעי או ניחושים.
+אל תשמור מידע רגיש מאוד אלא אם בניאל ביקש במפורש לזכור אותו.
+אל תחזור על עובדה שכבר קיימת.
+החזר שורה אחת לכל זיכרון חדש, בלי מספור ובלי הסבר. אם אין מה לשמור החזר NONE.
+
+זיכרונות קיימים:
+{existing}
+
+בניאל: {user_text}
+DEAN: {assistant_text}"""
+        r = client.responses.create(
+            model=MODEL,
+            input=prompt,
+            reasoning={"effort":"low"},
+            max_output_tokens=350,
+        )
+        out = (r.output_text or "").strip()
+        if not out or out.upper() == "NONE":
+            return
+        for line in out.splitlines():
+            clean = line.strip().lstrip("-•0123456789. ").strip()
+            if clean and clean.upper() != "NONE" and len(clean) <= 500:
+                save_memory(clean)
+    except Exception:
+        app.logger.exception("Automatic memory extraction failed")
+
 def save_memory(content):
     clean = " ".join(str(content).strip().split())
     if not clean:
@@ -216,6 +265,16 @@ def maybe_handle_local_command(message):
             f"• {m['content']}" for m in memories
         )
 
+    if text.startswith("סיימתי משימה ") or text.startswith("סמן משימה "):
+        raw = text.split(" ", 2)[-1].strip()
+        try:
+            task_id = int(raw)
+            with get_db() as con:
+                con.execute(db_sql("UPDATE tasks SET done=1 WHERE id=?"), (task_id,))
+            return f"סימנתי את משימה {task_id} כבוצעה."
+        except Exception:
+            return "תגיד לי את מספר המשימה שתרצה לסמן כבוצעה."
+
     task_prefixes = ["משימה ", "תוסיף משימה ", "תוסיף לי משימה "]
     for prefix in task_prefixes:
         if text.startswith(prefix):
@@ -234,8 +293,8 @@ def maybe_handle_local_command(message):
 
     return None
 
-def dean_instructions():
-    memories = list_memories(80)
+def dean_instructions(current_message=""):
+    memories = relevant_memories(current_message, 30)
     tasks = list_tasks(80)
 
     memory_text = "\\n".join(f"- {m['content']}" for m in memories) or "- אין עדיין"
@@ -307,7 +366,7 @@ def ask_dean(message):
     history = load_relevant_history(message)
     response = client.responses.create(
         model=MODEL,
-        instructions=dean_instructions(),
+        instructions=dean_instructions(message),
         input=history + [{"role": "user", "content": message}],
         tools=[{"type": "web_search"}],
         reasoning={"effort": "low"},
@@ -452,7 +511,8 @@ let voiceMode=false;
 let voiceRecognition=null;
 let voiceAudioContext=null;
 const liveVoiceBtn=document.getElementById("liveVoice");
-function startWork(){workStarted=Date.now(); if(workTimer)clearInterval(workTimer); const tick=()=>{const s=Math.floor((Date.now()-workStarted)/1000); const m=String(Math.floor(s/60)).padStart(2,"0"); const ss=String(s%60).padStart(2,"0"); statusEl.textContent=`🟢 DEAN עובד · ${m}:${ss}`;}; tick(); workTimer=setInterval(tick,1000);}
+function setStage(stage,state="work"){const icon=state==="wait"?"🟡":state==="need"?"🔴":"🟢";statusEl.dataset.stage=stage;statusEl.dataset.state=state;statusEl.textContent=icon+" "+stage;}
+function startWork(stage="חושב ומבצע"){workStarted=Date.now(); if(workTimer)clearInterval(workTimer); statusEl.dataset.stage=stage; statusEl.dataset.state="work"; const tick=()=>{const s=Math.floor((Date.now()-workStarted)/1000); const m=String(Math.floor(s/60)).padStart(2,"0"); const ss=String(s%60).padStart(2,"0"); const icon=statusEl.dataset.state==="wait"?"🟡":statusEl.dataset.state==="need"?"🔴":"🟢"; statusEl.textContent=`${icon} ${statusEl.dataset.stage||"DEAN עובד"} · ${m}:${ss}`;}; tick(); workTimer=setInterval(tick,1000);}
 function finishWork(){
   if(workTimer)clearInterval(workTimer);
   workTimer=null;
@@ -502,6 +562,7 @@ form.addEventListener("submit",async(e)=>{
   document.getElementById("send").disabled=true;
 
   try{
+    setStage("מעבד את הבקשה","work");
     const r=await fetch("/api/chat",{
       method:"POST",
       credentials:"same-origin",
@@ -523,6 +584,7 @@ form.addEventListener("submit",async(e)=>{
       throw new Error(data.error||"שגיאה");
     }
 
+    setStage("מסיים ושומר בזיכרון","wait");
     last=data.answer;
     addMessage("assistant",last);
     finishWork();
@@ -853,6 +915,7 @@ def chat():
 
     save_message("user", message)
     save_message("assistant", answer)
+    auto_learn_from_turn(message, answer)
 
     return jsonify(answer=answer)
 
