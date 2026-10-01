@@ -399,6 +399,7 @@ textarea:focus{border-color:rgba(105,236,192,.52);box-shadow:0 0 0 4px rgba(105,
 </div>
 <div class="tools">
 <button class="tool" type="button" id="mic">🎙️ דבר</button>
+<button class="tool" type="button" id="liveVoice">🗣️ שיחה חיה</button>
 <button class="tool" type="button" id="read">🔊 הקרא</button>
 <button class="tool" type="button" id="copy">⧉ העתק</button>
 </div>
@@ -414,8 +415,21 @@ const statusEl=document.getElementById("status");
 const csrf=document.getElementById("csrf").value;
 let last={{ last_answer|tojson }};
 let workTimer=null, workStarted=0;
+let voiceMode=false;
+let voiceRecognition=null;
+const liveVoiceBtn=document.getElementById("liveVoice");
 function startWork(){workStarted=Date.now(); if(workTimer)clearInterval(workTimer); const tick=()=>{const s=Math.floor((Date.now()-workStarted)/1000); const m=String(Math.floor(s/60)).padStart(2,"0"); const ss=String(s%60).padStart(2,"0"); statusEl.textContent=`🟢 DEAN עובד · ${m}:${ss}`;}; tick(); workTimer=setInterval(tick,1000);}
-function finishWork(){if(workTimer)clearInterval(workTimer); workTimer=null; statusEl.textContent="✅ הסתיים"; const u=new SpeechSynthesisUtterance("סיימתי"); u.lang="he-IL"; speechSynthesis.cancel(); speechSynthesis.speak(u);}
+function finishWork(){
+  if(workTimer)clearInterval(workTimer);
+  workTimer=null;
+  statusEl.textContent="✅ הסתיים";
+  if(!voiceMode){
+    const u=new SpeechSynthesisUtterance("סיימתי");
+    u.lang="he-IL";
+    speechSynthesis.cancel();
+    speechSynthesis.speak(u);
+  }
+}
 function failWork(msg){if(workTimer)clearInterval(workTimer); workTimer=null; statusEl.textContent="🔴 "+msg;}
 
 box.scrollTop=box.scrollHeight;
@@ -478,6 +492,9 @@ form.addEventListener("submit",async(e)=>{
     last=data.answer;
     addMessage("assistant",last);
     finishWork();
+    if(voiceMode){
+      speakForConversation(last,()=>setTimeout(startVoiceListening,250));
+    }
   }catch(err){
     failWork("שגיאה: "+err.message);
     message.value=text;
@@ -510,6 +527,87 @@ readBtn.onclick=()=>{
   u.onerror=()=>{readBtn.textContent="🔊 הקרא";};
   readBtn.textContent="⏹ עצור";
   speechSynthesis.speak(u);
+};
+
+function cleanForSpeech(text){
+  return (text||"")
+    .replace(/[*#_`~>|]/g,"")
+    .replace(/\[(.*?)\]\([^)]*\)/g,"$1");
+}
+
+function preferredHebrewVoice(){
+  const voices=speechSynthesis.getVoices();
+  return voices.find(v=>/^he([-_]|$)/i.test(v.lang) && /siri|enhanced|premium|natural/i.test(v.name))
+      || voices.find(v=>/^he([-_]|$)/i.test(v.lang))
+      || voices.find(v=>/hebrew|עברית/i.test(v.name))
+      || null;
+}
+
+function speakForConversation(text,onDone){
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(cleanForSpeech(text));
+  const he=preferredHebrewVoice();
+  if(he)u.voice=he;
+  u.lang="he-IL";
+  u.rate=1.02;
+  u.pitch=1.0;
+  u.onend=()=>{ if(onDone)onDone(); };
+  u.onerror=()=>{ if(onDone)onDone(); };
+  speechSynthesis.speak(u);
+}
+
+function startVoiceListening(){
+  if(!voiceMode)return;
+  const R=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!R){
+    voiceMode=false;
+    liveVoiceBtn.textContent="🗣️ שיחה חיה";
+    statusEl.textContent="🔴 שיחה חיה לא נתמכת בדפדפן הזה";
+    return;
+  }
+  if(voiceRecognition){ try{voiceRecognition.abort();}catch(e){} }
+  const r=new R();
+  voiceRecognition=r;
+  r.lang="he-IL";
+  r.interimResults=false;
+  r.continuous=false;
+  statusEl.textContent="🎙️ אני שומע...";
+  r.onresult=(e)=>{
+    const said=e.results[0][0].transcript.trim();
+    if(!said)return;
+    message.value=said;
+    form.requestSubmit();
+  };
+  r.onerror=(e)=>{
+    if(!voiceMode)return;
+    if(e.error==="not-allowed" || e.error==="service-not-allowed"){
+      voiceMode=false;
+      liveVoiceBtn.textContent="🗣️ שיחה חיה";
+      statusEl.textContent="🔴 צריך לאשר גישה למיקרופון";
+    }else{
+      statusEl.textContent="🟡 לא שמעתי, מנסה שוב...";
+      setTimeout(startVoiceListening,700);
+    }
+  };
+  r.onend=()=>{
+    if(voiceMode && !speechSynthesis.speaking && !document.getElementById("send").disabled){
+      setTimeout(startVoiceListening,350);
+    }
+  };
+  r.start();
+}
+
+liveVoiceBtn.onclick=()=>{
+  voiceMode=!voiceMode;
+  speechSynthesis.cancel();
+  if(voiceRecognition){ try{voiceRecognition.abort();}catch(e){} voiceRecognition=null; }
+  if(voiceMode){
+    liveVoiceBtn.textContent="⏹ סיים שיחה";
+    startVoiceListening();
+  }else{
+    liveVoiceBtn.textContent="🗣️ שיחה חיה";
+    statusEl.textContent="✅ שיחה חיה הסתיימה";
+  }
 };
 
 document.getElementById("mic").onclick=()=>{
