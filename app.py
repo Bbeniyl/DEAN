@@ -17,7 +17,7 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
 DEAN_PASSWORD = os.getenv("DEAN_PASSWORD", "").strip()
 SECRET_KEY = os.getenv("SECRET_KEY", "").strip()
 MODEL = os.getenv("OPENAI_MODEL", "gpt-5.6-sol").strip()
-DB_PATH = os.getenv("DB_PATH", "/tmp/dean.sqlite3").strip()
+DB_PATH = os.getenv("DB_PATH", "/tmp/dean.sqlite3").strip()\nDATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 
 if not OPENAI_API_KEY:
     raise RuntimeError("OPENAI_API_KEY is missing")
@@ -41,6 +41,11 @@ def utc_now():
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 def get_db():
+    """Use persistent Postgres when DATABASE_URL is configured; otherwise SQLite."""
+    if DATABASE_URL:
+        import psycopg
+        return psycopg.connect(DATABASE_URL, autocommit=False, row_factory=psycopg.rows.dict_row)
+
     parent = os.path.dirname(DB_PATH)
     if parent:
         os.makedirs(parent, exist_ok=True)
@@ -48,33 +53,33 @@ def get_db():
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA busy_timeout=30000")
     con.execute("PRAGMA journal_mode=WAL")
-    con.executescript("""
-    CREATE TABLE IF NOT EXISTS messages(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        role TEXT NOT NULL,
-        content TEXT NOT NULL,
-        created TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS memories(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        content TEXT NOT NULL UNIQUE,
-        created TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS tasks(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        content TEXT NOT NULL,
-        done INTEGER NOT NULL DEFAULT 0,
-        created TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS login_attempts(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        ip TEXT NOT NULL,
-        ok INTEGER NOT NULL,
-        created REAL NOT NULL
-    );
-    """)
-    con.commit()
     return con
+
+def init_db():
+    with get_db() as con:
+        if DATABASE_URL:
+            con.execute("""CREATE TABLE IF NOT EXISTS messages(
+                id BIGSERIAL PRIMARY KEY, role TEXT NOT NULL, content TEXT NOT NULL, created TEXT NOT NULL)""")
+            con.execute("""CREATE TABLE IF NOT EXISTS memories(
+                id BIGSERIAL PRIMARY KEY, content TEXT NOT NULL UNIQUE, created TEXT NOT NULL)""")
+            con.execute("""CREATE TABLE IF NOT EXISTS tasks(
+                id BIGSERIAL PRIMARY KEY, content TEXT NOT NULL, done INTEGER NOT NULL DEFAULT 0, created TEXT NOT NULL)""")
+            con.execute("""CREATE TABLE IF NOT EXISTS login_attempts(
+                id BIGSERIAL PRIMARY KEY, ip TEXT NOT NULL, ok INTEGER NOT NULL, created DOUBLE PRECISION NOT NULL)""")
+        else:
+            con.executescript("""
+            CREATE TABLE IF NOT EXISTS messages(
+                id INTEGER PRIMARY KEY AUTOINCREMENT, role TEXT NOT NULL, content TEXT NOT NULL, created TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS memories(
+                id INTEGER PRIMARY KEY AUTOINCREMENT, content TEXT NOT NULL UNIQUE, created TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS tasks(
+                id INTEGER PRIMARY KEY AUTOINCREMENT, content TEXT NOT NULL, done INTEGER NOT NULL DEFAULT 0, created TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS login_attempts(
+                id INTEGER PRIMARY KEY AUTOINCREMENT, ip TEXT NOT NULL, ok INTEGER NOT NULL, created REAL NOT NULL);
+            """)
+        con.commit()
+
+init_db()
 
 def is_logged_in():
     return session.get("authenticated") is True
