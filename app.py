@@ -724,25 +724,21 @@ document.getElementById("copy").onclick=async()=>{
 };
 
 const readBtn=document.getElementById("read");
+let readingReply=false;
 readBtn.onclick=()=>{
-  if(speechSynthesis.speaking || speechSynthesis.pending){
-    speechSynthesis.cancel();
+  if(readingReply){
+    stopDeanSpeaking();
+    readingReply=false;
     readBtn.textContent="🔊 הקרא";
     return;
   }
   if(!last)return;
-  const spoken=last.replace(/[*#_`~>|]/g,"").replace(/\[(.*?)\]\([^)]*\)/g,"$1");
-  const u=new SpeechSynthesisUtterance(spoken);
-  const voices=speechSynthesis.getVoices();
-  const he=voices.find(v=>/^he([-_]|$)/i.test(v.lang)) || voices.find(v=>/hebrew|עברית/i.test(v.name));
-  if(he)u.voice=he;
-  u.rate=0.98;
-  u.pitch=1.0;
-  u.lang="he-IL";
-  u.onend=()=>{readBtn.textContent="🔊 הקרא";};
-  u.onerror=()=>{readBtn.textContent="🔊 הקרא";};
+  readingReply=true;
   readBtn.textContent="⏹ עצור";
-  speechSynthesis.speak(u);
+  speakForConversation(last,()=>{
+    readingReply=false;
+    readBtn.textContent="🔊 הקרא";
+  });
 };
 
 function cleanForSpeech(text){
@@ -903,7 +899,7 @@ def api_speech():
             model="gpt-4o-mini-tts",
             voice="cedar",
             input=text[:4096],
-            instructions="Speak natural conversational Hebrew. Warm, relaxed, human, friendly, not announcer-like, not robotic. Use natural Israeli pacing and light expressive intonation."
+            instructions="You are the spoken voice of DEAN, Beniel's personal AI. Speak Hebrew exactly like DEAN's chat personality: everyday Israeli Hebrew, direct, warm, relaxed and natural, with light humor or playful sarcasm only when the text calls for it. Never sound like an announcer, call center, robot or formal assistant. Preserve the meaning and emotional tone of the written reply. Use natural pauses, Israeli conversational pacing, and human intonation."
         )
         return Response(audio.content, mimetype="audio/mpeg")
     except Exception:
