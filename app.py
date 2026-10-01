@@ -250,6 +250,18 @@ def list_tasks(limit=100):
         ).fetchall()
     return [dict(r) for r in rows]
 
+def complete_task(task_id):
+    with get_db() as con:
+        con.execute(db_sql("UPDATE tasks SET done=1 WHERE id=?"), (task_id,))
+
+def reopen_task(task_id):
+    with get_db() as con:
+        con.execute(db_sql("UPDATE tasks SET done=0 WHERE id=?"), (task_id,))
+
+def delete_task(task_id):
+    with get_db() as con:
+        con.execute(db_sql("DELETE FROM tasks WHERE id=?"), (task_id,))
+
 def create_action_request(action, details=""):
     with get_db() as con:
         row = con.execute(
@@ -302,6 +314,25 @@ def maybe_handle_local_command(message):
             if content:
                 add_task(content)
                 return f"הוספתי משימה: {content}"
+
+    for prefix in ["סיימתי משימה ", "סמן משימה "]:
+        if text.startswith(prefix):
+            raw = text[len(prefix):].strip()
+            if raw.isdigit():
+                complete_task(int(raw))
+                return f"סימנתי את משימה {raw} כבוצעה."
+
+    if text.startswith("פתח מחדש משימה "):
+        raw = text[len("פתח מחדש משימה "):].strip()
+        if raw.isdigit():
+            reopen_task(int(raw))
+            return f"פתחתי מחדש את משימה {raw}."
+
+    if text.startswith("מחק משימה "):
+        raw = text[len("מחק משימה "):].strip()
+        if raw.isdigit():
+            delete_task(int(raw))
+            return f"מחקתי את משימה {raw}."
 
     if text in {"/tasks", "משימות", "מה המשימות שלי"}:
         tasks = list_tasks(50)
