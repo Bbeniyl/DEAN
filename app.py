@@ -458,22 +458,81 @@ def dean_instructions(current_message=""):
 - כאשר כלי ביצוע מחובר בעתיד, פעל כמתזמר: בחר את הכלי המתאים, בצע, בדוק תוצאה, תקן אם נכשל והמשך עד השלמת המטרה.
 """.strip()
 
+def run_browser_agent(url, goal):
+    """Run a real TinyFish web agent. Requires a server-side key; never expose it to the model or browser UI."""
+    if not TINYFISH_API_KEY:
+        return {"ok": False, "error": "browser_not_configured"}
+    try:
+        r = requests.post(
+            "https://agent.tinyfish.ai/v1/automation/run",
+            headers={"X-API-Key": TINYFISH_API_KEY, "Content-Type": "application/json"},
+            json={"url": url, "goal": goal, "browser_profile": "stealth"},
+            timeout=240,
+        )
+        data = r.json() if r.content else {}
+        if not r.ok:
+            return {"ok": False, "status_code": r.status_code, "error": data}
+        return {"ok": True, "run": data}
+    except Exception as e:
+        app.logger.exception("TinyFish browser run failed")
+        return {"ok": False, "error": str(e)}
+
 def ask_dean(message):
     history = load_relevant_history(message)
+    tools = [
+        {"type": "web_search"},
+        {
+            "type": "function",
+            "name": "browser_run",
+            "description": "Use DEAN's real browser to navigate a website, click, fill forms, and complete a user-requested web workflow. Do not use for merely answering factual questions. Never claim success unless the returned result confirms it.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string", "description": "The starting https URL."},
+                    "goal": {"type": "string", "description": "Precise goal for the browser agent. Do not include passwords or secret keys."}
+                },
+                "required": ["url", "goal"],
+                "additionalProperties": False
+            },
+            "strict": True
+        }
+    ]
     response = client.responses.create(
         model=MODEL,
         instructions=dean_instructions(message),
         input=history + [{"role": "user", "content": message}],
-        tools=[{"type": "web_search"}],
-        reasoning={"effort": "low"},
+        tools=tools,
+        reasoning={"effort":"low"},
         max_output_tokens=1200,
     )
-    text = (response.output_text or "").strip()
-    # Keep DEAN's chat visually clean and natural for both reading and speech.
-    import re
-    text = re.sub(r"[*#_~`>|]+", "", text)
-    text = re.sub(r"\[(.*?)\]\((.*?)\)", r"\1", text)
-    text = re.sub(r"^\s*[-•]\s+", "", text, flags=re.MULTILINE)
+
+    import json, re
+    for _ in range(3):
+        calls = [x for x in response.output if getattr(x, "type", "") == "function_call" and getattr(x, "name", "") == "browser_run"]
+        if not calls:
+            break
+        outputs=[]
+        for call in calls:
+            try:
+                args=json.loads(call.arguments or "{}")
+                result=run_browser_agent(args.get("url",""), args.get("goal",""))
+            except Exception as e:
+                result={"ok":False,"error":str(e)}
+            outputs.append({"type":"function_call_output","call_id":call.call_id,"output":json.dumps(result,ensure_ascii=False)})
+        response=client.responses.create(
+            model=MODEL,
+            instructions=dean_instructions(message),
+            previous_response_id=response.id,
+            input=outputs,
+            tools=tools,
+            reasoning={"effort":"low"},
+            max_output_tokens=1200,
+        )
+
+    text=(response.output_text or "").strip()
+    text=re.sub(r"[*#_~\`>|]+","",text)
+    text=re.sub(r"\[(.*?)\]\((.*?)\)",r"\1",text)
+    text=re.sub(r"^\s*[-•]\s+","",text,flags=re.MULTILINE)
     return text or "לא התקבלה תשובה."
 
 LOGIN_HTML = r"""
