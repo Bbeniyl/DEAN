@@ -17,7 +17,8 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
 DEAN_PASSWORD = os.getenv("DEAN_PASSWORD", "").strip()
 SECRET_KEY = os.getenv("SECRET_KEY", "").strip()
 MODEL = os.getenv("OPENAI_MODEL", "gpt-5.6-sol").strip()
-DB_PATH = os.getenv("DB_PATH", "/tmp/dean.sqlite3").strip()\nDATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+DB_PATH = os.getenv("DB_PATH", "/tmp/dean.sqlite3").strip()
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 
 if not OPENAI_API_KEY:
     raise RuntimeError("OPENAI_API_KEY is missing")
@@ -177,7 +178,9 @@ def maybe_handle_local_command(message):
         memories = list_memories(50)
         if not memories:
             return "עדיין אין לי זיכרונות קבועים שמורים."
-        return "הזיכרונות השמורים שלי:\n" + "\n".join(
+        return "הזיכרונות השמורים שלי:
+" + "
+".join(
             f"• {m['content']}" for m in memories
         )
 
@@ -193,7 +196,9 @@ def maybe_handle_local_command(message):
         tasks = list_tasks(50)
         if not tasks:
             return "אין כרגע משימות."
-        return "המשימות שלך:\n" + "\n".join(
+        return "המשימות שלך:
+" + "
+".join(
             f"{'✅' if t['done'] else '⬜'} {t['id']}. {t['content']}" for t in tasks
         )
 
@@ -203,8 +208,10 @@ def dean_instructions():
     memories = list_memories(80)
     tasks = list_tasks(80)
 
-    memory_text = "\n".join(f"- {m['content']}" for m in memories) or "- אין עדיין"
-    task_text = "\n".join(
+    memory_text = "
+".join(f"- {m['content']}" for m in memories) or "- אין עדיין"
+    task_text = "
+".join(
         f"- {'בוצע' if t['done'] else 'פתוח'}: {t['content']}" for t in tasks
     ) or "- אין כרגע"
 
