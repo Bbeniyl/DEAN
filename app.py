@@ -19,6 +19,7 @@ SECRET_KEY = os.getenv("SECRET_KEY", "").strip()
 MODEL = os.getenv("OPENAI_MODEL", "gpt-5.6-sol").strip()
 DB_PATH = os.getenv("DB_PATH", "/tmp/dean.sqlite3").strip()
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+DEAN_VERSION = os.getenv("RENDER_GIT_COMMIT", "dev").strip()[:12]
 
 if not OPENAI_API_KEY:
     raise RuntimeError("OPENAI_API_KEY is missing")
@@ -69,6 +70,8 @@ def init_db():
                 id BIGSERIAL PRIMARY KEY, ip TEXT NOT NULL, ok INTEGER NOT NULL, created DOUBLE PRECISION NOT NULL)""")
             con.execute("""CREATE TABLE IF NOT EXISTS action_requests(
                 id BIGSERIAL PRIMARY KEY, action TEXT NOT NULL, details TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending', created TEXT NOT NULL)""")
+            con.execute("""CREATE TABLE IF NOT EXISTS releases(
+                id BIGSERIAL PRIMARY KEY, version TEXT NOT NULL UNIQUE, notes TEXT NOT NULL, created TEXT NOT NULL)""")
         else:
             con.executescript("""
             CREATE TABLE IF NOT EXISTS messages(
@@ -81,10 +84,29 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT, ip TEXT NOT NULL, ok INTEGER NOT NULL, created REAL NOT NULL);
             CREATE TABLE IF NOT EXISTS action_requests(
                 id INTEGER PRIMARY KEY AUTOINCREMENT, action TEXT NOT NULL, details TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending', created TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS releases(
+                id INTEGER PRIMARY KEY AUTOINCREMENT, version TEXT NOT NULL UNIQUE, notes TEXT NOT NULL, created TEXT NOT NULL);
             """)
         con.commit()
 
 init_db()
+
+CURRENT_RELEASE_NOTES = """למידה אוטומטית מהשיחות; זיכרון קבוע וחיפוש הקשר; משימות עם סיום/פתיחה/מחיקה; תור אישורים לפעולות רגישות; עצירה מיידית של הקול והשיחה החיה; חיווי עבודה ושלבים."""
+def register_release():
+    try:
+        with get_db() as con:
+            if DATABASE_URL:
+                con.execute("INSERT INTO releases(version,notes,created) VALUES(%s,%s,%s) ON CONFLICT(version) DO NOTHING",(DEAN_VERSION,CURRENT_RELEASE_NOTES,utc_now()))
+            else:
+                con.execute("INSERT OR IGNORE INTO releases(version,notes,created) VALUES(?,?,?)",(DEAN_VERSION,CURRENT_RELEASE_NOTES,utc_now()))
+    except Exception:
+        app.logger.exception("Release registration failed")
+register_release()
+
+def latest_release():
+    with get_db() as con:
+        row=con.execute("SELECT version,notes,created FROM releases ORDER BY id DESC LIMIT 1").fetchone()
+    return dict(row) if row else {"version":DEAN_VERSION,"notes":CURRENT_RELEASE_NOTES,"created":utc_now()}
 
 def is_logged_in():
     return session.get("authenticated") is True
@@ -288,6 +310,10 @@ def maybe_handle_local_command(message):
             if content:
                 save_memory(content)
                 return f"שמרתי בזיכרון: {content}"
+
+    if text in {"מה חדש", "מה חדש בך", "מה עדכנו בך", "איזה עדכונים קיבלת", "/version"}:
+        rel=latest_release()
+        return f"הגרסה שלי היא {rel['version']}. העדכון האחרון: {rel['notes']}"
 
     if text in {"/memories", "זיכרונות", "מה אתה זוכר"}:
         memories = list_memories(50)
@@ -579,6 +605,7 @@ const form=document.getElementById("chatForm");
 const message=document.getElementById("message");
 const statusEl=document.getElementById("status");
 const csrf=document.getElementById("csrf").value;
+const versionKey="dean_seen_version";
 let last={{ last_answer|tojson }};
 let workTimer=null, workStarted=0;
 let voiceMode=false;
