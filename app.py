@@ -393,6 +393,9 @@ def dean_instructions(current_message=""):
     task_text = "\\n".join(
         f"- {'בוצע' if t['done'] else 'פתוח'}: {t['content']}" for t in tasks
     ) or "- אין כרגע"
+    approval_text = "\\n".join(
+        f"- {r['id']}: {r['action']}" for r in approvals
+    ) or "- אין כרגע"
 
     return f"""
 אתה DEAN, העוזר האישי הביצועי והמדריך האישי של בניאל.
