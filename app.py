@@ -648,6 +648,7 @@ textarea:focus{border-color:rgba(105,236,192,.52);box-shadow:0 0 0 4px rgba(105,
 <button class="tool" type="button" id="mic">🎙️ דבר</button>
 <button class="tool" type="button" id="liveVoice">🗣️ שיחה חיה</button>
 <button class="tool" type="button" id="read">🔊 הקרא</button>
+<button class="tool" type="button" id="stopSpeech">⏹ עצור</button>
 <button class="tool" type="button" id="copy">⧉ העתק</button>
 </div>
 </section>
@@ -669,12 +670,15 @@ let voiceAudioContext=null;
 let activeVoiceSource=null;
 let activeSpeechController=null;
 const liveVoiceBtn=document.getElementById("liveVoice");
+const stopSpeechBtn=document.getElementById("stopSpeech");
 
 function stopDeanSpeaking(){
   if(activeSpeechController){try{activeSpeechController.abort();}catch(e){} activeSpeechController=null;}
   if(activeVoiceSource){try{activeVoiceSource.stop(0);}catch(e){} activeVoiceSource=null;}
   speechSynthesis.cancel();
 }
+
+stopSpeechBtn.onclick=()=>{ stopDeanSpeaking(); readingReply=false; document.getElementById("read").textContent="🔊 הקרא"; statusEl.textContent="⏹ ההקראה נעצרה"; };
 
 function stopLiveConversation(){
   voiceMode=false;
@@ -832,7 +836,7 @@ async function speakForConversation(text,onDone){
     activeVoiceSource=src;
     src.buffer=decoded;
     src.connect(voiceAudioContext.destination);
-    src.onended=()=>{ activeVoiceSource=null; activeSpeechController=null; if(voiceMode && onDone)onDone(); };
+    src.onended=()=>{ activeVoiceSource=null; activeSpeechController=null; if(onDone)onDone(); };
     src.start(0);
   }catch(e){
     activeSpeechController=null;
