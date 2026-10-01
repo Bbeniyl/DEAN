@@ -160,36 +160,36 @@ def list_tasks(limit=100):
 def maybe_handle_local_command(message):
     text = message.strip()
 
-    prefixes = ["×ª××××¨ ", "×ª×××¨× ", "×ª×©×××¨ ", "×ª×©××¨× ", "×©×××¨ ", "×©××¨× "]
+    prefixes = ["תזכור ", "תזכרי ", "תשמור ", "תשמרי ", "שמור ", "שמרי "]
     for prefix in prefixes:
         if text.startswith(prefix):
             content = text[len(prefix):].strip()
             if content:
                 save_memory(content)
-                return f"×©××¨×ª× ×××××¨××: {content}"
+                return f"שמרתי בזיכרון: {content}"
 
-    if text in {"/memories", "××××¨×× ××ª", "×× ××ª× ××××¨"}:
+    if text in {"/memories", "זיכרונות", "מה אתה זוכר"}:
         memories = list_memories(50)
         if not memories:
-            return "×¢×××× ××× ×× ××××¨×× ××ª ×§×××¢×× ×©×××¨××."
-        return "×××××¨×× ××ª ××©×××¨×× ×©××:\n" + "\n".join(
-            f"â¢ {m['content']}" for m in memories
+            return "עדיין אין לי זיכרונות קבועים שמורים."
+        return "הזיכרונות השמורים שלי:\n" + "\n".join(
+            f"• {m['content']}" for m in memories
         )
 
-    task_prefixes = ["××©××× ", "×ª××¡××£ ××©××× ", "×ª××¡××£ ×× ××©××× "]
+    task_prefixes = ["משימה ", "תוסיף משימה ", "תוסיף לי משימה "]
     for prefix in task_prefixes:
         if text.startswith(prefix):
             content = text[len(prefix):].strip()
             if content:
                 add_task(content)
-                return f"×××¡×¤×ª× ××©×××: {content}"
+                return f"הוספתי משימה: {content}"
 
-    if text in {"/tasks", "××©××××ª", "×× ×××©××××ª ×©××"}:
+    if text in {"/tasks", "משימות", "מה המשימות שלי"}:
         tasks = list_tasks(50)
         if not tasks:
-            return "××× ××¨××¢ ××©××××ª."
-        return "×××©××××ª ×©××:\n" + "\n".join(
-            f"{'â' if t['done'] else 'â¬'} {t['id']}. {t['content']}" for t in tasks
+            return "אין כרגע משימות."
+        return "המשימות שלך:\n" + "\n".join(
+            f"{'✅' if t['done'] else '⬜'} {t['id']}. {t['content']}" for t in tasks
         )
 
     return None
@@ -253,7 +253,7 @@ def ask_dean(message):
         max_output_tokens=2500,
     )
     text = (response.output_text or "").strip()
-    return text or "×× ××ª×§××× ×ª×©×××."
+    return text or "לא התקבלה תשובה."
 
 LOGIN_HTML = r"""
 <!doctype html>
@@ -282,12 +282,12 @@ button{width:100%;margin-top:12px;padding:16px;border:0;border-radius:16px;backg
 <div class="card">
 <div class="logo">D</div>
 <h1>DEAN</h1>
-<div class="sub">××¢×××¨ ××××©× ××¤×¨×× ×©× ×× ×××</div>
+<div class="sub">העוזר האישי הפרטי של בניאל</div>
 {% if error %}<p class="error">{{ error }}</p>{% endif %}
 <form method="post">
 <input type="hidden" name="csrf" value="{{ csrf }}">
-<input type="password" name="password" placeholder="×¡××¡××ª DEAN" autocomplete="current-password" required>
-<button>×× ××¡× ×××××××ª</button>
+<input type="password" name="password" placeholder="סיסמת DEAN" autocomplete="current-password" required>
+<button>כניסה מאובטחת</button>
 </form>
 </div>
 </body>
@@ -325,33 +325,33 @@ textarea:focus{border-color:rgba(105,236,192,.52);box-shadow:0 0 0 4px rgba(105,
 <body>
 <div class="app">
 <aside class="side">
-<div class="brand"><div class="avatar">D</div><div><strong>DEAN</strong><span>××¢×××¨ ××××©× ×©× ×× ×××</span></div></div>
-<div class="card"><div class="status"><span class="dot"></span>DEAN ×××××¨</div></div>
-<div class="card"><h3>ð§  ××××¨××</h3>
+<div class="brand"><div class="avatar">D</div><div><strong>DEAN</strong><span>העוזר האישי של בניאל</span></div></div>
+<div class="card"><div class="status"><span class="dot"></span>DEAN מחובר</div></div>
+<div class="card"><h3>🧠 זיכרון</h3>
 {% if memories %}
 {% for m in memories[:12] %}<div class="rowitem">{{ m["content"] }}</div>{% endfor %}
-{% else %}<div class="rowitem">××× ×¢×××× ××××¨×× ××ª.</div>{% endif %}
+{% else %}<div class="rowitem">אין עדיין זיכרונות.</div>{% endif %}
 </div>
-<div class="card"><h3>â ××©××××ª</h3>
+<div class="card"><h3>☑ משימות</h3>
 {% if tasks %}
-{% for t in tasks[:12] %}<div class="rowitem">{{ "â" if t["done"] else "â¬" }} {{ t["content"] }}</div>{% endfor %}
-{% else %}<div class="rowitem">××× ××¨××¢ ××©××××ª.</div>{% endif %}
+{% for t in tasks[:12] %}<div class="rowitem">{{ "✅" if t["done"] else "⬜" }} {{ t["content"] }}</div>{% endfor %}
+{% else %}<div class="rowitem">אין כרגע משימות.</div>{% endif %}
 </div>
-<div class="logout"><button class="tool" id="logout" style="width:100%">××¦×××</button></div>
+<div class="logout"><button class="tool" id="logout" style="width:100%">יציאה</button></div>
 </aside>
 
 <main class="main">
 <header class="top">
-<div class="title"><div class="avatar">D</div><div><b>DEAN</b><br><small>×¢×××¨ ×××©× ×¤×¨××</small></div></div>
-<div class="status"><span class="dot"></span>×××××¨</div>
+<div class="title"><div class="avatar">D</div><div><b>DEAN</b><br><small>עוזר אישי פרטי</small></div></div>
+<div class="status"><span class="dot"></span>מחובר</div>
 </header>
 
 <section class="chat" id="messages">
 {% if not messages %}
-<div class="welcome"><div class="big">D</div><h2>×× × ×¢×©× ××××?</h2><p>×××¨ ×××ª× ×××¢×. ×× × ××××¨, ××××§ ×××©×ª××© ××××× ××××××¨×× ××××.</p></div>
+<div class="welcome"><div class="big">D</div><h2>מה נעשה היום?</h2><p>דבר איתי טבעי. אני זוכר, בודק ומשתמש בכלים המחוברים אליי.</p></div>
 {% endif %}
 {% for m in messages %}
-<div class="msg {{ m['role'] }}"><div class="mini">{{ "××ª×" if m["role"]=="user" else "D" }}</div><div class="bubble">{{ m["content"] }}</div></div>
+<div class="msg {{ m['role'] }}"><div class="mini">{{ "אתה" if m["role"]=="user" else "D" }}</div><div class="bubble">{{ m["content"] }}</div></div>
 {% endfor %}
 </section>
 
@@ -360,14 +360,14 @@ textarea:focus{border-color:rgba(105,236,192,.52);box-shadow:0 0 0 4px rgba(105,
 <div class="compose">
 <form id="chatForm">
 <input type="hidden" id="csrf" value="{{ csrf }}">
-<textarea id="message" rows="1" maxlength="6000" placeholder="×××¨ ×¢× DEAN..." required></textarea>
-<button class="send" id="send" aria-label="×©××">â¤</button>
+<textarea id="message" rows="1" maxlength="6000" placeholder="דבר עם DEAN..." required></textarea>
+<button class="send" id="send" aria-label="שלח">➤</button>
 </form>
 </div>
 <div class="tools">
-<button class="tool" type="button" id="mic">ðï¸ ×××¨</button>
-<button class="tool" type="button" id="read">ð ××§×¨×</button>
-<button class="tool" type="button" id="copy">â§ ××¢×ª×§</button>
+<button class="tool" type="button" id="mic">🎙️ דבר</button>
+<button class="tool" type="button" id="read">🔊 הקרא</button>
+<button class="tool" type="button" id="copy">⧉ העתק</button>
 </div>
 </section>
 </main>
@@ -394,7 +394,7 @@ function addMessage(role,text){
 
   const mini=document.createElement("div");
   mini.className="mini";
-  mini.textContent=role==="user"?"××ª×":"D";
+  mini.textContent=role==="user"?"אתה":"D";
 
   const bubble=document.createElement("div");
   bubble.className="bubble";
@@ -413,7 +413,7 @@ form.addEventListener("submit",async(e)=>{
   addMessage("user",text);
   message.value="";
   message.style.height="auto";
-  statusEl.textContent="DEAN ××××§ ××××©×...";
+  statusEl.textContent="DEAN בודק וחושב...";
   document.getElementById("send").disabled=true;
 
   try{
@@ -435,14 +435,14 @@ form.addEventListener("submit",async(e)=>{
     const data=await r.json();
 
     if(!r.ok){
-      throw new Error(data.error||"×©××××");
+      throw new Error(data.error||"שגיאה");
     }
 
     last=data.answer;
     addMessage("assistant",last);
     statusEl.textContent="";
   }catch(err){
-    statusEl.textContent="×©××××: "+err.message;
+    statusEl.textContent="שגיאה: "+err.message;
     message.value=text;
   }finally{
     document.getElementById("send").disabled=false;
@@ -472,7 +472,7 @@ readBtn.onclick=()=>{
 document.getElementById("mic").onclick=()=>{
   const R=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!R){
-    alert("×××ª×× ×§××××ª ×× ×××× × ×××¤××¤× ××× ××¨××¢.");
+    alert("הכתבה קולית לא זמינה בדפדפן הזה כרגע.");
     return;
   }
   const r=new R();
@@ -537,7 +537,7 @@ def login_post():
         return render_template_string(
             LOGIN_HTML,
             csrf=csrf_token(),
-            error="×××ª×¨ ××× × ××¡××× ××ª. × ×¡× ×©×× ××¢×× ××× ××§××ª."
+            error="יותר מדי ניסיונות. נסה שוב בעוד כמה דקות."
         ), 429
 
     password = request.form.get("password", "")
@@ -553,7 +553,7 @@ def login_post():
         return render_template_string(
             LOGIN_HTML,
             csrf=csrf_token(),
-            error="×¡××¡×× ×©××××"
+            error="סיסמה שגויה"
         ), 401
 
     session.clear()
@@ -601,10 +601,10 @@ def chat():
     message = str(data.get("message", "")).strip()
 
     if not message:
-        return jsonify(error="××××¢× ×¨××§×"), 400
+        return jsonify(error="הודעה ריקה"), 400
 
     if len(message) > 6000:
-        return jsonify(error="×××××¢× ××¨××× ×××"), 400
+        return jsonify(error="ההודעה ארוכה מדי"), 400
 
     local_answer = maybe_handle_local_command(message)
 
@@ -618,7 +618,7 @@ def chat():
     except Exception:
         app.logger.exception("DEAN request failed")
         return jsonify(
-            error="DEAN ×× ××¦××× ×××©××× ××ª ×××§×©× ××¨××¢."
+            error="DEAN לא הצליח להשלים את הבקשה כרגע."
         ), 502
 
     save_message("user", message)
