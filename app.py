@@ -252,14 +252,14 @@ def dean_instructions():
 """.strip()
 
 def ask_dean(message):
-    history = load_history(30)
+    history = load_history(12)
     response = client.responses.create(
         model=MODEL,
         instructions=dean_instructions(),
         input=history + [{"role": "user", "content": message}],
         tools=[{"type": "web_search"}],
-        reasoning={"effort": "medium"},
-        max_output_tokens=2500,
+        reasoning={"effort": "low"},
+        max_output_tokens=1200,
     )
     text = (response.output_text or "").strip()
     return text or "לא התקבלה תשובה."
