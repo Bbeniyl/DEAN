@@ -7,6 +7,7 @@ import requests
 import re
 from datetime import datetime, timezone
 from functools import wraps
+from urllib.parse import urlencode
 
 from flask import (
     Flask, request, session, redirect, url_for,
@@ -23,6 +24,10 @@ MODEL = os.getenv("OPENAI_MODEL", "gpt-5.6-sol").strip()
 DB_PATH = os.getenv("DB_PATH", "/tmp/dean.sqlite3").strip()
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 _tinyfish_raw = os.getenv("TINYFISH_API_KEY", "")\n_tinyfish_match = re.search(r"sk-tinyfish-[A-Za-z0-9._-]+", _tinyfish_raw)\nTINYFISH_API_KEY = _tinyfish_match.group(0) if _tinyfish_match else _tinyfish_raw.strip()
+TIKTOK_CLIENT_KEY = os.getenv("TIKTOK_CLIENT_KEY", "").strip()
+TIKTOK_CLIENT_SECRET = os.getenv("TIKTOK_CLIENT_SECRET", "").strip()
+TIKTOK_REDIRECT_URI = os.getenv("TIKTOK_REDIRECT_URI", "https://dean-agent-5y18.onrender.com/tiktok/callback").strip()
+TIKTOK_SCOPES = os.getenv("TIKTOK_SCOPES", "user.info.basic").strip()
 DEAN_VERSION = os.getenv("RENDER_GIT_COMMIT", "dev").strip()[:12]
 
 if not OPENAI_API_KEY:
@@ -478,14 +483,23 @@ def run_browser_agent(url, goal):
         app.logger.exception("TinyFish browser run failed")
         return {"ok": False, "error": str(e)}
 
+def needs_browser(message):
+    text = str(message).lower()
+    action_words = (
+        "פתח אתר","כנס לאתר","תיכנס לאתר","תפתח אתר","לחץ על","תלחץ על",
+        "מלא טופס","תמלא טופס","תתחבר ל","תיכנס ל","תפרסם","תעלה פוסט",
+        "תנווט","נווט ל","בדוק באתר","תבדוק באתר","https://","http://"
+    )
+    return any(x in text for x in action_words)
+
 def ask_dean(message):
-    history = load_relevant_history(message, recent_limit=10, scan_limit=220, max_extra=8)
-    tools = [
-        {"type": "web_search"},
-        {
+    history = load_relevant_history(message, recent_limit=10, scan_limit=180, max_extra=6)
+    tools = []
+    if needs_browser(message):
+        tools.append({
             "type": "function",
             "name": "browser_run",
-            "description": "Use DEAN's real browser to navigate a website, click, fill forms, and complete a user-requested web workflow. Do not use for merely answering factual questions. Never claim success unless the returned result confirms it.",
+            "description": "Use DEAN's real browser only for an explicit user-requested website action. Never claim success unless the returned result confirms it.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -496,19 +510,18 @@ def ask_dean(message):
                 "additionalProperties": False
             },
             "strict": True
-        }
-    ]
+        })
     response = client.responses.create(
         model=MODEL,
         instructions=dean_instructions(message),
         input=history + [{"role": "user", "content": message}],
         tools=tools,
         reasoning={"effort":"low"},
-        max_output_tokens=1200,
+        max_output_tokens=700,
     )
 
     import json, re
-    for _ in range(3):
+    for _ in range(2):
         calls = [x for x in response.output if getattr(x, "type", "") == "function_call" and getattr(x, "name", "") == "browser_run"]
         if not calls:
             break
@@ -527,7 +540,7 @@ def ask_dean(message):
             input=outputs,
             tools=tools,
             reasoning={"effort":"low"},
-            max_output_tokens=1200,
+            max_output_tokens=700,
         )
 
     text=(response.output_text or "").strip()
@@ -962,6 +975,94 @@ def api_speech():
     except Exception:
         app.logger.exception("Speech generation failed")
         return jsonify(error="שגיאה ביצירת קול"), 500
+
+
+def save_oauth_token(provider, access_token, refresh_token="", open_id="", scope="", expires_at=0):
+    with get_db() as con:
+        if DATABASE_URL:
+            con.execute("""INSERT INTO oauth_tokens(provider,access_token,refresh_token,open_id,scope,expires_at,updated)
+                VALUES(%s,%s,%s,%s,%s,%s,%s)
+                ON CONFLICT(provider) DO UPDATE SET access_token=EXCLUDED.access_token,
+                refresh_token=EXCLUDED.refresh_token,open_id=EXCLUDED.open_id,scope=EXCLUDED.scope,
+                expires_at=EXCLUDED.expires_at,updated=EXCLUDED.updated""",
+                (provider,access_token,refresh_token,open_id,scope,expires_at,utc_now()))
+        else:
+            con.execute("""INSERT INTO oauth_tokens(provider,access_token,refresh_token,open_id,scope,expires_at,updated)
+                VALUES(?,?,?,?,?,?,?)
+                ON CONFLICT(provider) DO UPDATE SET access_token=excluded.access_token,
+                refresh_token=excluded.refresh_token,open_id=excluded.open_id,scope=excluded.scope,
+                expires_at=excluded.expires_at,updated=excluded.updated""",
+                (provider,access_token,refresh_token,open_id,scope,expires_at,utc_now()))
+
+def oauth_status(provider):
+    with get_db() as con:
+        row=con.execute(db_sql("SELECT provider,open_id,scope,expires_at,updated FROM oauth_tokens WHERE provider=?"),(provider,)).fetchone()
+    return dict(row) if row else None
+
+@app.get("/tiktok/connect")
+@require_login
+def tiktok_connect():
+    if not TIKTOK_CLIENT_KEY or not TIKTOK_CLIENT_SECRET:
+        return "TikTok app credentials are not configured yet.", 503
+    state=secrets.token_urlsafe(32)
+    session["tiktok_oauth_state"]=state
+    params={
+        "client_key":TIKTOK_CLIENT_KEY,
+        "response_type":"code",
+        "scope":TIKTOK_SCOPES,
+        "redirect_uri":TIKTOK_REDIRECT_URI,
+        "state":state,
+    }
+    return redirect("https://www.tiktok.com/v2/auth/authorize/?"+urlencode(params))
+
+@app.get("/tiktok/callback")
+def tiktok_callback():
+    if request.args.get("error"):
+        return "TikTok authorization was not completed.", 400
+    state=request.args.get("state","")
+    expected=session.pop("tiktok_oauth_state",None)
+    if not expected or not secrets.compare_digest(state,expected):
+        return "Invalid TikTok authorization state.", 400
+    code=request.args.get("code","")
+    if not code:
+        return "Missing TikTok authorization code.", 400
+    r=requests.post(
+        "https://open.tiktokapis.com/v2/oauth/token/",
+        headers={"Content-Type":"application/x-www-form-urlencoded"},
+        data={
+            "client_key":TIKTOK_CLIENT_KEY,
+            "client_secret":TIKTOK_CLIENT_SECRET,
+            "code":code,
+            "grant_type":"authorization_code",
+            "redirect_uri":TIKTOK_REDIRECT_URI,
+        },
+        timeout=20,
+    )
+    data=r.json() if r.content else {}
+    if not r.ok or not data.get("access_token"):
+        app.logger.error("TikTok token exchange failed: %s", data)
+        return "TikTok authorization failed.", 502
+    expires_at=time.time()+float(data.get("expires_in") or 0)
+    save_oauth_token(
+        "tiktok",
+        data.get("access_token",""),
+        data.get("refresh_token",""),
+        data.get("open_id",""),
+        data.get("scope",""),
+        expires_at,
+    )
+    return "TikTok connected to Beniyl successfully. You can return to DEAN.", 200
+
+@app.get("/api/tiktok/status")
+@require_login
+def api_tiktok_status():
+    st=oauth_status("tiktok")
+    return jsonify(
+        configured=bool(TIKTOK_CLIENT_KEY and TIKTOK_CLIENT_SECRET),
+        connected=bool(st),
+        scope=(st or {}).get("scope",""),
+        updated=(st or {}).get("updated",""),
+    )
 
 @app.get("/health")
 def health():
