@@ -67,6 +67,8 @@ def init_db():
                 id BIGSERIAL PRIMARY KEY, content TEXT NOT NULL, done INTEGER NOT NULL DEFAULT 0, created TEXT NOT NULL)""")
             con.execute("""CREATE TABLE IF NOT EXISTS login_attempts(
                 id BIGSERIAL PRIMARY KEY, ip TEXT NOT NULL, ok INTEGER NOT NULL, created DOUBLE PRECISION NOT NULL)""")
+            con.execute("""CREATE TABLE IF NOT EXISTS action_requests(
+                id BIGSERIAL PRIMARY KEY, action TEXT NOT NULL, details TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending', created TEXT NOT NULL)""")
         else:
             con.executescript("""
             CREATE TABLE IF NOT EXISTS messages(
@@ -77,6 +79,8 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT, content TEXT NOT NULL, done INTEGER NOT NULL DEFAULT 0, created TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS login_attempts(
                 id INTEGER PRIMARY KEY AUTOINCREMENT, ip TEXT NOT NULL, ok INTEGER NOT NULL, created REAL NOT NULL);
+            CREATE TABLE IF NOT EXISTS action_requests(
+                id INTEGER PRIMARY KEY AUTOINCREMENT, action TEXT NOT NULL, details TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending', created TEXT NOT NULL);
             """)
         con.commit()
 
@@ -246,6 +250,22 @@ def list_tasks(limit=100):
         ).fetchall()
     return [dict(r) for r in rows]
 
+def create_action_request(action, details=""):
+    with get_db() as con:
+        row = con.execute(
+            db_sql("INSERT INTO action_requests(action,details,status,created) VALUES(?,?,?,?) RETURNING id"),
+            (action[:300], details[:2000], "pending", utc_now())
+        ).fetchone()
+    return row["id"]
+
+def list_action_requests(limit=50):
+    with get_db() as con:
+        rows = con.execute(
+            db_sql("SELECT id,action,details,status,created FROM action_requests ORDER BY id DESC LIMIT ?"),
+            (limit,)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
 def maybe_handle_local_command(message):
     text = message.strip()
 
@@ -291,11 +311,26 @@ def maybe_handle_local_command(message):
             f"{'✅' if t['done'] else '⬜'} {t['id']}. {t['content']}" for t in tasks
         )
 
+    approval_prefixes = ["בקשת אישור ", "צריך אישור "]
+    for prefix in approval_prefixes:
+        if text.startswith(prefix):
+            content = text[len(prefix):].strip()
+            if content:
+                rid = create_action_request(content)
+                return f"יצרתי בקשת אישור {rid}: {content}"
+
+    if text in {"/approvals", "אישורים", "מה מחכה לאישור"}:
+        reqs = [r for r in list_action_requests(50) if r["status"] == "pending"]
+        if not reqs:
+            return "אין כרגע פעולות שמחכות לאישור."
+        return "מחכה לאישור שלך:\\n" + "\\n".join(f"{r['id']}. {r['action']}" for r in reqs)
+
     return None
 
 def dean_instructions(current_message=""):
     memories = relevant_memories(current_message, 30)
     tasks = list_tasks(80)
+    approvals = [r for r in list_action_requests(50) if r["status"] == "pending"]
 
     memory_text = "\\n".join(f"- {m['content']}" for m in memories) or "- אין עדיין"
     task_text = "\\n".join(
@@ -360,6 +395,14 @@ def dean_instructions(current_message=""):
 
 משימות:
 {task_text}
+
+פעולות שממתינות לאישור בניאל:
+{approval_text}
+
+כלל ביצוע:
+- לפני פעולה חיצונית רגישה, צור בקשת אישור ברורה ואל תטען שהפעולה בוצעה לפני שיש כלי אמיתי ותוצאה מאומתת.
+- כשאין עדיין כלי שמסוגל לבצע פעולה, אמור במדויק שהכלי עדיין לא מחובר במקום להעמיד פנים שביצעת.
+- כאשר כלי ביצוע מחובר בעתיד, פעל כמתזמר: בחר את הכלי המתאים, בצע, בדוק תוצאה, תקן אם נכשל והמשך עד השלמת המטרה.
 """.strip()
 
 def ask_dean(message):
