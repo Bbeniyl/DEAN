@@ -21,7 +21,7 @@ SECRET_KEY = os.getenv("SECRET_KEY", "").strip()
 MODEL = os.getenv("OPENAI_MODEL", "gpt-5.6-sol").strip()
 DB_PATH = os.getenv("DB_PATH", "/tmp/dean.sqlite3").strip()
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
-TINYFISH_API_KEY = os.getenv("TINYFISH_API_KEY", "").strip()
+_tinyfish_raw = os.getenv("TINYFISH_API_KEY", "")\n_tinyfish_match = re.search(r"sk-tinyfish-[A-Za-z0-9._-]+", _tinyfish_raw)\nTINYFISH_API_KEY = _tinyfish_match.group(0) if _tinyfish_match else _tinyfish_raw.strip()
 DEAN_VERSION = os.getenv("RENDER_GIT_COMMIT", "dev").strip()[:12]
 
 if not OPENAI_API_KEY:
@@ -467,7 +467,7 @@ def run_browser_agent(url, goal):
             "https://agent.tinyfish.ai/v1/automation/run",
             headers={"X-API-Key": TINYFISH_API_KEY, "Content-Type": "application/json"},
             json={"url": url, "goal": goal, "browser_profile": "stealth"},
-            timeout=240,
+            timeout=90,
         )
         data = r.json() if r.content else {}
         if not r.ok:
@@ -478,7 +478,7 @@ def run_browser_agent(url, goal):
         return {"ok": False, "error": str(e)}
 
 def ask_dean(message):
-    history = load_relevant_history(message)
+    history = load_relevant_history(message, recent_limit=10, scan_limit=220, max_extra=8)
     tools = [
         {"type": "web_search"},
         {
