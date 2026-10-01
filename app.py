@@ -453,11 +453,19 @@ document.getElementById("copy").onclick=async()=>{
   if(last)await navigator.clipboard.writeText(last);
 };
 
-document.getElementById("read").onclick=()=>{
+const readBtn=document.getElementById("read");
+readBtn.onclick=()=>{
+  if(speechSynthesis.speaking || speechSynthesis.pending){
+    speechSynthesis.cancel();
+    readBtn.textContent="🔊 הקרא";
+    return;
+  }
   if(!last)return;
   const u=new SpeechSynthesisUtterance(last);
   u.lang="he-IL";
-  speechSynthesis.cancel();
+  u.onend=()=>{readBtn.textContent="🔊 הקרא";};
+  u.onerror=()=>{readBtn.textContent="🔊 הקרא";};
+  readBtn.textContent="⏹ עצור";
   speechSynthesis.speak(u);
 };
 
