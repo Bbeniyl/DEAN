@@ -3,6 +3,7 @@ import sqlite3
 import secrets
 import time
 import threading
+import requests
 from datetime import datetime, timezone
 from functools import wraps
 
@@ -20,6 +21,7 @@ SECRET_KEY = os.getenv("SECRET_KEY", "").strip()
 MODEL = os.getenv("OPENAI_MODEL", "gpt-5.6-sol").strip()
 DB_PATH = os.getenv("DB_PATH", "/tmp/dean.sqlite3").strip()
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+TINYFISH_API_KEY = os.getenv("TINYFISH_API_KEY", "").strip()
 DEAN_VERSION = os.getenv("RENDER_GIT_COMMIT", "dev").strip()[:12]
 
 if not OPENAI_API_KEY:
