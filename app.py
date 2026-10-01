@@ -94,7 +94,7 @@ def init_db():
 
 init_db()
 
-CURRENT_RELEASE_NOTES = """זיכרון קבוע ב-Postgres וחיפוש הקשר; למידה אוטומטית ברקע בלי לעכב תשובה; משימות עם סיום/פתיחה/מחיקה; תור אישורים לפעולות רגישות; קול אחיד להקראה ולשיחה חיה; עצירה מיידית של קול ושיחה; חיווי עבודה ושלבים; זיהוי גרסה ועדכונים."""
+CURRENT_RELEASE_NOTES = """זיכרון קבוע ב-Postgres וחיפוש הקשר; למידה אוטומטית ברקע; משימות ואישורים; קול ושיחה חיה; חיווי עבודה; כלי גלישה אמיתי דרך TinyFish עם בדיקת חיבור ב-health."""
 def register_release():
     try:
         with get_db() as con:
@@ -455,7 +455,7 @@ def dean_instructions(current_message=""):
 כלל ביצוע:
 - לפני פעולה חיצונית רגישה, צור בקשת אישור ברורה ואל תטען שהפעולה בוצעה לפני שיש כלי אמיתי ותוצאה מאומתת.
 - כשאין עדיין כלי שמסוגל לבצע פעולה, אמור במדויק שהכלי עדיין לא מחובר במקום להעמיד פנים שביצעת.
-- כאשר כלי ביצוע מחובר בעתיד, פעל כמתזמר: בחר את הכלי המתאים, בצע, בדוק תוצאה, תקן אם נכשל והמשך עד השלמת המטרה.
+- כלי browser_run הוא כלי גלישה אמיתי של DEAN דרך TinyFish והוא מחובר כאשר השרת הגדיר TINYFISH_API_KEY. כשבניאל מבקש לפתוח אתר, לנווט, ללחוץ או למלא טופס, השתמש ב-browser_run בפועל; אל תגיד שאין כלי גלישה בלי שניסית את הכלי וקיבלת שגיאה.\n- כאשר כלי ביצוע מחובר, פעל כמתזמר: בחר את הכלי המתאים, בצע, בדוק תוצאה, תקן אם נכשל והמשך עד השלמת המטרה.
 """.strip()
 
 def run_browser_agent(url, goal):
@@ -963,7 +963,7 @@ def health():
     try:
         with get_db() as con:
             con.execute("SELECT 1").fetchone()
-        return jsonify(status="ok", database="postgres" if DATABASE_URL else "sqlite")
+        return jsonify(status="ok", database="postgres" if DATABASE_URL else "sqlite", browser_configured=bool(TINYFISH_API_KEY))
     except Exception:
         app.logger.exception("Database health check failed")
         return jsonify(status="error", database="postgres" if DATABASE_URL else "sqlite"), 503
