@@ -315,6 +315,15 @@ def list_action_requests(limit=50):
 def maybe_handle_local_command(message):
     text = message.strip()
 
+    if text in {"פתח לי דפדפן משותף","פתח דפדפן משותף","תפתח לי דפדפן משותף"}:
+        result = steel_create_session()
+        if not result.get("ok"):
+            return "לא הצלחתי לפתוח דפדפן משותף: " + str(result.get("error") or result)
+        url = result.get("debug_url")
+        if not url:
+            return "הדפדפן נפתח אבל לא התקבל קישור Live View."
+        return "פתחתי דפדפן משותף. הנה הקישור החי:\n" + url
+
     prefixes = ["תזכור ", "תזכרי ", "תשמור ", "תשמרי ", "שמור ", "שמרי "]
     for prefix in prefixes:
         if text.startswith(prefix):
