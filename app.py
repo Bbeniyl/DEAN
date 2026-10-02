@@ -14,6 +14,7 @@ from flask import (
     jsonify, render_template_string, abort, Response
 )
 from openai import OpenAI
+from steel_client import configured as steel_configured, create_session as steel_create_session
 
 app = Flask(__name__)
 
@@ -1065,6 +1066,17 @@ def api_tiktok_status():
         scope=(st or {}).get("scope",""),
         updated=(st or {}).get("updated",""),
     )
+
+@app.get("/api/steel/status")
+@require_login
+def api_steel_status():
+    return jsonify(configured=steel_configured())
+
+@app.post("/api/steel/session")
+@require_csrf
+def api_steel_session():
+    result=steel_create_session()
+    return jsonify(result), (200 if result.get("ok") else 502)
 
 @app.get("/health")
 def health():
