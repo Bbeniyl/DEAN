@@ -765,6 +765,8 @@ form.addEventListener("submit",async(e)=>{
 
   try{
     setStage("מעבד את הבקשה","work");
+    const controller=new AbortController();
+    const timeoutId=setTimeout(()=>controller.abort(),80000);
     const r=await fetch("/api/chat",{
       method:"POST",
       credentials:"same-origin",
@@ -772,8 +774,10 @@ form.addEventListener("submit",async(e)=>{
         "Content-Type":"application/json",
         "X-CSRF-Token":csrf
       },
-      body:JSON.stringify({message:text})
+      body:JSON.stringify({message:text}),
+      signal:controller.signal
     });
+    clearTimeout(timeoutId);
 
     if(r.status===401){
       location.href="/login";
@@ -794,7 +798,7 @@ form.addEventListener("submit",async(e)=>{
       speakForConversation(last,()=>setTimeout(startVoiceListening,250));
     }
   }catch(err){
-    failWork("שגיאה: "+err.message);
+    failWork(err && err.name==="AbortError" ? "הבקשה לקחה יותר מדי זמן. נסה שוב." : "שגיאה: "+err.message);
     message.value=text;
   }finally{
     document.getElementById("send").disabled=false;
