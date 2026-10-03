@@ -312,17 +312,68 @@ def list_action_requests(limit=50):
         ).fetchall()
     return [dict(r) for r in rows]
 
+def start_tinyfish_live_browser(url="https://www.google.com", goal="Open the page and stay ready for the user's next instruction. Do not sign in, submit forms, purchase, publish, delete, or change account settings."):
+    """Start a TinyFish SSE run and return its live streaming URL as soon as it appears."""
+    if not TINYFISH_API_KEY:
+        return {"ok": False, "error": "browser_not_configured"}
+
+    state = {}
+    ready = threading.Event()
+
+    def worker():
+        import json
+        try:
+            with requests.post(
+                "https://agent.tinyfish.ai/v1/automation/run-sse",
+                headers={"X-API-Key": TINYFISH_API_KEY, "Content-Type": "application/json"},
+                json={"url": url, "goal": goal, "browser_profile": "stealth"},
+                stream=True,
+                timeout=(15, 300),
+            ) as r:
+                if not r.ok:
+                    state["error"] = f"tinyfish_http_{r.status_code}"
+                    ready.set()
+                    return
+                for raw in r.iter_lines(decode_unicode=True):
+                    if not raw or not raw.startswith("data:"):
+                        continue
+                    try:
+                        event = json.loads(raw[5:].strip())
+                    except Exception:
+                        continue
+                    etype = str(event.get("type") or "").upper()
+                    data = event.get("data") if isinstance(event.get("data"), dict) else {}
+                    if etype == "STARTED":
+                        run_id = event.get("run_id") or event.get("runId") or data.get("run_id") or data.get("runId")
+                        if run_id:
+                            state["run_url"] = f"https://agent.tinyfish.ai/runs/{run_id}"
+                    if etype == "STREAMING_URL":
+                        live = event.get("streaming_url") or event.get("streamingUrl") or event.get("url") or data.get("streaming_url") or data.get("streamingUrl") or data.get("url")
+                        if live:
+                            state["live_url"] = live
+                            ready.set()
+                    if etype in {"COMPLETE", "FAILED", "CANCELLED"}:
+                        ready.set()
+                        break
+        except Exception as exc:
+            state["error"] = str(exc)
+            ready.set()
+
+    threading.Thread(target=worker, daemon=True, name="dean-tinyfish-live").start()
+    ready.wait(25)
+    live = state.get("live_url") or state.get("run_url")
+    if live:
+        return {"ok": True, "live_url": live}
+    return {"ok": False, "error": state.get("error") or "live_url_timeout"}
+
 def maybe_handle_local_command(message):
     text = message.strip()
 
     if text in {"פתח לי דפדפן משותף","פתח דפדפן משותף","תפתח לי דפדפן משותף"}:
-        result = steel_create_session()
+        result = start_tinyfish_live_browser()
         if not result.get("ok"):
-            return "לא הצלחתי לפתוח דפדפן משותף: " + str(result.get("error") or result)
-        url = result.get("debug_url")
-        if not url:
-            return "הדפדפן נפתח אבל לא התקבל קישור Live View."
-        return "פתחתי דפדפן משותף. הנה הקישור החי:\n" + url
+            return "לא הצלחתי לפתוח דפדפן משותף דרך TinyFish: " + str(result.get("error") or result)
+        return "פתחתי דפדפן משותף דרך TinyFish. הנה הקישור החי:\\n" + result["live_url"]
 
     prefixes = ["תזכור ", "תזכרי ", "תשמור ", "תשמרי ", "שמור ", "שמרי "]
     for prefix in prefixes:
