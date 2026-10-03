@@ -14,7 +14,7 @@ from flask import (
     jsonify, render_template_string, abort, Response
 )
 from openai import OpenAI
-from steel_client import configured as steel_configured, create_session as steel_create_session
+from steel_client import configured as steel_configured, create_session as steel_create_session, validate_key as steel_validate_key
 
 app = Flask(__name__)
 
@@ -1096,9 +1096,17 @@ def health():
     try:
         with get_db() as con:
             con.execute("SELECT 1").fetchone()
-        return jsonify(status="ok", database="postgres" if DATABASE_URL else "sqlite", browser_configured=bool(TINYFISH_API_KEY))
+        steel = steel_validate_key()
+        return jsonify(
+            status="ok",
+            database="postgres" if DATABASE_URL else "sqlite",
+            browser_configured=bool(TINYFISH_API_KEY),
+            steel_configured=steel.get("configured", False),
+            steel_authenticated=steel.get("authenticated", False),
+            steel_status_code=steel.get("status_code"),
+        )
     except Exception:
-        app.logger.exception("Database health check failed")
+        app.logger.exception("Health check failed")
         return jsonify(status="error", database="postgres" if DATABASE_URL else "sqlite"), 503
 
 @app.get("/login")
