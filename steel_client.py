@@ -78,3 +78,27 @@ def create_session():
         "debug_url": debug_url,
         "viewer_ready": bool(debug_url),
     }
+
+
+def validate_key():
+    key = api_key()
+    if not key:
+        return {"configured": False, "authenticated": False, "status_code": None}
+    try:
+        r = requests.get(
+            f"{BASE_URL}/sessions",
+            headers={"steel-api-key": key},
+            timeout=15,
+        )
+        return {
+            "configured": True,
+            "authenticated": r.status_code == 200,
+            "status_code": r.status_code,
+        }
+    except requests.RequestException as exc:
+        return {
+            "configured": True,
+            "authenticated": False,
+            "status_code": None,
+            "error": str(exc),
+        }
