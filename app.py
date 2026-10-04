@@ -7,7 +7,7 @@ import requests
 import re
 from datetime import datetime, timezone
 from functools import wraps
-from urllib.parse import urlencode
+from urllib.parse import urlencode, quote_plus
 
 from flask import (
     Flask, request, session, redirect, url_for,
@@ -425,6 +425,29 @@ def maybe_handle_local_command(message):
 
     wants_google = wants_open and ("גוגל" in text or "google" in text.lower())
 
+    # Direct commands for the persistent shared browser.
+    # Example: "דין כנס למסך המשותף לגוגל תעשה לי תמונות של טרקטורון סיף"
+    shared_context = ("מסך המשותף" in text or "דפדפן המשותף" in text or "משותף" in text)
+    image_match = re.search(r"תמונות(?:\s+בגוגל)?(?:\s+של)?\s+(.+)$", text)
+    if shared_context and image_match:
+        query = image_match.group(1).strip(" .,!?:;")
+        if query:
+            ok = persistent_browser_navigate("https://www.google.com/search?tbm=isch&q=" + quote_plus(query))
+            if ok:
+                return "בוצע. פתחתי במסך המשותף חיפוש תמונות בגוגל: " + query
+            ensure_persistent_browser()
+            return "הדפדפן המשותף מתחבר. נסה שוב בעוד כמה שניות."
+
+    search_match = re.search(r"(?:חפש|תחפש|תעשה לי חיפוש)(?:\s+בגוגל)?\s+(.+)$", text)
+    if shared_context and search_match:
+        query = search_match.group(1).strip(" .,!?:;")
+        if query:
+            ok = persistent_browser_navigate("https://www.google.com/search?q=" + quote_plus(query))
+            if ok:
+                return "בוצע. חיפשתי במסך המשותף בגוגל: " + query
+            ensure_persistent_browser()
+            return "הדפדפן המשותף מתחבר. נסה שוב בעוד כמה שניות."
+
     # Shared browser now uses DEAN's own live viewer for the already-running
     # persistent Chromium session. This avoids the generic Browserless debugger.
     if mentions_shared_browser or (wants_shared_browser and wants_open) or bare_browser_command or wants_google:
@@ -585,26 +608,44 @@ def dean_instructions(current_message=""):
 כלל ביצוע:
 - לפני פעולה חיצונית רגישה, צור בקשת אישור ברורה ואל תטען שהפעולה בוצעה לפני שיש כלי אמיתי ותוצאה מאומתת.
 - כשאין עדיין כלי שמסוגל לבצע פעולה, אמור במדויק שהכלי עדיין לא מחובר במקום להעמיד פנים שביצעת.
-- כלי browser_run הוא כלי גלישה אמיתי של DEAN דרך TinyFish והוא מחובר כאשר השרת הגדיר TINYFISH_API_KEY. כשבניאל מבקש לפתוח אתר, לנווט, ללחוץ או למלא טופס, השתמש ב-browser_run בפועל; אל תגיד שאין כלי גלישה בלי שניסית את הכלי וקיבלת שגיאה.\n- כאשר כלי ביצוע מחובר, פעל כמתזמר: בחר את הכלי המתאים, בצע, בדוק תוצאה, תקן אם נכשל והמשך עד השלמת המטרה.
+- כלי browser_run שולט בדפדפן המשותף הקבוע של DEAN שרץ ב-Render. כשבניאל מבקש לפתוח אתר, לחפש בגוגל או להציג תמונות במסך המשותף, השתמש בכלי בפועל. אל תגיד שאין כלי גלישה לפני שניסית וקיבלת שגיאה אמיתית.\n- כאשר כלי ביצוע מחובר, פעל כמתזמר: בחר את הכלי המתאים, בצע, בדוק תוצאה, תקן אם נכשל והמשך עד השלמת המטרה.
 """.strip()
 
 def run_browser_agent(url, goal):
-    """Run a real TinyFish web agent. Requires a server-side key; never expose it to the model or browser UI."""
-    if not TINYFISH_API_KEY:
-        return {"ok": False, "error": "browser_not_configured"}
+    """Control DEAN's persistent shared Chromium session."""
     try:
-        r = requests.post(
-            "https://agent.tinyfish.ai/v1/automation/run",
-            headers={"X-API-Key": TINYFISH_API_KEY, "Content-Type": "application/json"},
-            json={"url": url, "goal": goal, "browser_profile": "stealth"},
-            timeout=90,
-        )
-        data = r.json() if r.content else {}
-        if not r.ok:
-            return {"ok": False, "status_code": r.status_code, "error": data}
-        return {"ok": True, "run": data}
+        st = persistent_browser_status()
+        if not st.get("connected"):
+            ensure_persistent_browser()
+            time.sleep(2)
+            st = persistent_browser_status()
+        if not st.get("connected"):
+            return {"ok": False, "error": "shared_browser_not_connected", "status": st}
+
+        goal_text = str(goal or "").strip()
+        url_text = str(url or "").strip()
+
+        # Image-search requests go straight to Google Images in the shared browser.
+        m = re.search(r"(?:תמונות(?:\s+של)?|images?\s+(?:of|for)?)\s+(.+)$", goal_text, re.I)
+        if m:
+            q = m.group(1).strip(" .,!?:;")
+            ok = persistent_browser_navigate("https://www.google.com/search?tbm=isch&q=" + quote_plus(q))
+            return {"ok": bool(ok), "action": "google_images", "query": q}
+
+        # Ordinary Google-search intent.
+        m = re.search(r"(?:חפש|תחפש|search(?:\s+for)?)\s+(.+)$", goal_text, re.I)
+        if m:
+            q = m.group(1).strip(" .,!?:;")
+            ok = persistent_browser_navigate("https://www.google.com/search?q=" + quote_plus(q))
+            return {"ok": bool(ok), "action": "google_search", "query": q}
+
+        if url_text:
+            ok = persistent_browser_navigate(url_text)
+            return {"ok": bool(ok), "action": "navigate", "url": url_text}
+
+        return {"ok": False, "error": "missing_browser_action"}
     except Exception as e:
-        app.logger.exception("TinyFish browser run failed")
+        app.logger.exception("Persistent browser run failed")
         return {"ok": False, "error": str(e)}
 
 def needs_browser(message):
@@ -612,7 +653,7 @@ def needs_browser(message):
     action_words = (
         "פתח אתר","כנס לאתר","תיכנס לאתר","תפתח אתר","לחץ על","תלחץ על",
         "מלא טופס","תמלא טופס","תתחבר ל","תיכנס ל","תפרסם","תעלה פוסט",
-        "תנווט","נווט ל","בדוק באתר","תבדוק באתר","https://","http://"
+        "תנווט","נווט ל","בדוק באתר","תבדוק באתר","מסך המשותף","דפדפן המשותף","תמונות של","חפש בגוגל","תחפש בגוגל","https://","http://"
     )
     return any(x in text for x in action_words)
 
