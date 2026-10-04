@@ -15,7 +15,7 @@ from flask import (
 )
 from openai import OpenAI
 from steel_client import configured as steel_configured, create_session as steel_create_session, validate_key as steel_validate_key, active_session_status
-from persistent_browser import ensure_started as ensure_persistent_browser, status as persistent_browser_status, latest_frame as persistent_browser_frame, navigate as persistent_browser_navigate, click as persistent_browser_click, type_text as persistent_browser_type, press_key as persistent_browser_key, start_keepalive as start_browser_keepalive
+from persistent_browser import ensure_started as ensure_persistent_browser, status as persistent_browser_status, latest_frame as persistent_browser_frame, navigate as persistent_browser_navigate, click as persistent_browser_click, type_text as persistent_browser_type, press_key as persistent_browser_key, start_keepalive as start_browser_keepalive, wait_until_ready as browser_wait_until_ready
 
 app = Flask(__name__)
 
@@ -1365,7 +1365,7 @@ document.getElementById("chatMic").onclick=()=>{
 @app.get("/browser")
 @require_login
 def shared_browser():
-    return render_template_string(SHARED_BROWSER_HTML, csrf=csrf_token())
+    threading.Thread(target=browser_wait_until_ready, args=(25,), daemon=True).start()\n    return render_template_string(SHARED_BROWSER_HTML, csrf=csrf_token())
 
 @app.get("/api/browser/status")
 @require_login
