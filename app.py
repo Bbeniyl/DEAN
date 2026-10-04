@@ -393,10 +393,15 @@ def maybe_handle_local_command(message):
     )
 
     if mentions_shared_browser or (wants_shared_browser and wants_open) or bare_browser_command:
-        result = start_tinyfish_live_browser()
+        # Steel is the active shared-browser provider. Its interactive debug URL
+        # lets Beniyl watch and take over the same cloud browser session.
+        result = steel_create_session()
         if not result.get("ok"):
-            return "לא הצלחתי לפתוח דפדפן משותף דרך TinyFish: " + str(result.get("error") or result)
-        return "פתחתי דפדפן משותף. הנה הקישור החי:\\n" + result["live_url"]
+            return "לא הצלחתי לפתוח דפדפן משותף דרך Steel: " + str(result.get("error") or result)
+        live_url = result.get("debug_url")
+        if not live_url:
+            return "Steel פתח סשן, אבל לא החזיר קישור צפייה חי."
+        return "פתחתי דפדפן משותף דרך Steel. הנה הקישור החי:\\n" + live_url
 
     prefixes = ["תזכור ", "תזכרי ", "תשמור ", "תשמרי ", "שמור ", "שמרי "]
     for prefix in prefixes:
