@@ -1179,7 +1179,7 @@ button{font-size:15px;padding:10px 14px;border:1px solid rgba(255,255,255,.10);b
 .small{font-size:12px;color:#8fa6bf;padding:4px 4px 8px}
 .stage{display:flex;justify-content:center;align-items:flex-start;background:#0b0f16;min-height:0;overflow:auto;flex:1;border:1px solid rgba(255,255,255,.08);border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,.38);overflow:hidden}
 #screen{width:100%;max-width:1024px;height:auto;display:block;touch-action:manipulation;background:#fff;border-radius:18px}
-.chatPane{position:fixed;right:18px;bottom:18px;width:290px;height:340px;z-index:30;background:rgba(10,14,22,.94);backdrop-filter:blur(22px);display:none;flex-direction:column;min-width:0;border:1px solid rgba(100,220,255,.22);border-radius:22px;box-shadow:0 24px 70px rgba(0,0,0,.55),0 0 35px rgba(54,194,255,.10);overflow:hidden}
+.chatPane{position:fixed;right:18px;bottom:18px;width:290px;height:340px;z-index:10000;background:rgba(10,14,22,.94);backdrop-filter:blur(22px);display:none;flex-direction:column;min-width:0;border:1px solid rgba(100,220,255,.22);border-radius:22px;box-shadow:0 24px 70px rgba(0,0,0,.55),0 0 35px rgba(54,194,255,.10);overflow:hidden}
 .chatPane.open{display:flex}
 .chatHead{padding:10px 12px;border-bottom:1px solid #2a2d33;font-weight:700;display:flex;justify-content:space-between;align-items:center;cursor:move;touch-action:none}
 .chatMsgs{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
@@ -1188,7 +1188,7 @@ button{font-size:15px;padding:10px 14px;border:1px solid rgba(255,255,255,.10);b
 .msg.assistant{background:#24272e;align-self:flex-end}
 .chatForm{display:flex;gap:8px;padding:10px;border-top:1px solid #2a2d33}
 #chatInput{flex:1;min-width:0}
-#chatToggle{display:inline-grid;place-items:center;position:fixed;right:18px;bottom:18px;z-index:29;width:54px;height:54px;padding:0;border-radius:50%;font-size:0;background:linear-gradient(135deg,#5ce1ff,#7b61ff);box-shadow:0 12px 34px rgba(75,174,255,.42);border:1px solid rgba(255,255,255,.25)}
+#chatToggle{display:grid;place-items:center;position:fixed;right:22px;bottom:22px;z-index:9999;width:58px;height:58px;padding:0;border-radius:50%;font-size:0;background:linear-gradient(135deg,#5ce1ff,#7b61ff);box-shadow:0 12px 34px rgba(75,174,255,.42);border:1px solid rgba(255,255,255,.25)}
 #chatToggle::after{content:"D";font-size:21px;font-weight:900;color:#061019}
 @media(max-width:900px){
   .main{grid-template-columns:1fr}
@@ -1203,7 +1203,6 @@ button{font-size:15px;padding:10px 14px;border:1px solid rgba(255,255,255,.10);b
 <input id="url" value="https://duckduckgo.com/?kl=il-he" autocomplete="off" autocapitalize="none">
 <button id="go">פתח</button>
 <button id="reload">רענן</button>
-<button id="chatToggle" title="דבר עם דין" aria-label="דבר עם דין">D</button>
 </div>
 
 <div class="main">
@@ -1229,6 +1228,7 @@ button{font-size:15px;padding:10px 14px;border:1px solid rgba(255,255,255,.10);b
     </form>
   </aside>
 </div>
+<button id="chatToggle" title="דבר עם דין" aria-label="דבר עם דין">D</button>
 
 <script>
 const csrf={{ csrf|tojson }};
