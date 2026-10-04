@@ -199,7 +199,7 @@ def navigate(url):
     if not url:
         return False
     value = str(url).strip()
-    if not value.startswith(("http://", "https://")):
+    if not value.startswith(("http://", "https://", "data:")):
         value = "https://" + value
     if not _cdp_session_id and not wait_until_ready(25):
         return False
