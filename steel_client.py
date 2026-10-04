@@ -1,5 +1,6 @@
 import os
 import requests
+from urllib.parse import quote
 
 # Compatibility module: DEAN historically imported this file as steel_client.
 # The active provider is Browserless.
@@ -12,6 +13,10 @@ def api_key():
 
 def configured():
     return bool(api_key())
+
+
+def _is_self_hosted():
+    return "production-" not in BASE_URL and "browserless.io" not in BASE_URL
 
 
 def _bql(query, timeout=30):
@@ -40,8 +45,26 @@ def _bql(query, timeout=30):
 
 
 def create_session():
-    # Browserless liveURL is the end-user viewer. Unlike devtoolsFrontendUrl,
-    # it is intended to open directly in Safari/mobile and can be interactive.
+    key = api_key()
+    if not key:
+        return {"ok": False, "error": "browserless_not_configured"}
+
+    # Self-hosted Browserless Docker ships with its own interactive Live Debugger.
+    # Do not use BrowserQL here: the open-source self-hosted container does not
+    # expose the hosted /chromium/bql endpoint.
+    if _is_self_hosted():
+        live_url = f"{BASE_URL}/debugger/?token={quote(key, safe='')}"
+        return {
+            "ok": True,
+            "session_id": None,
+            "debug_url": live_url,
+            "live_url": live_url,
+            "viewer_ready": True,
+            "viewer_timeout_ms": None,
+            "provider": "browserless-self-hosted",
+        }
+
+    # Browserless Cloud supports BrowserQL + liveURL.
     query = """mutation StartDeanSession {
       goto(url: "https://www.google.com", waitUntil: domContentLoaded) { status }
       liveURL(interactable: true, showBrowserInterface: true, resizable: true, quality: 70, timeout: 120000) {
@@ -71,6 +94,30 @@ def validate_key():
     key = api_key()
     if not key:
         return {"configured": False, "authenticated": False, "status_code": None, "provider": "browserless"}
+
+    if _is_self_hosted():
+        try:
+            r = requests.get(
+                f"{BASE_URL}/json/version",
+                params={"token": key},
+                timeout=15,
+            )
+            return {
+                "configured": True,
+                "authenticated": bool(r.ok),
+                "status_code": r.status_code,
+                "provider": "browserless-self-hosted",
+                "error": None if r.ok else (r.text or "")[:160],
+            }
+        except requests.RequestException as exc:
+            return {
+                "configured": True,
+                "authenticated": False,
+                "status_code": None,
+                "provider": "browserless-self-hosted",
+                "error": str(exc),
+            }
+
     query = """query DeanBrowserlessHealth { version }"""
     r, data = _bql(query, timeout=15)
     if r is None:
