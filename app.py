@@ -409,16 +409,19 @@ def maybe_handle_local_command(message):
         or ("דפד" in text and "משות" in text)
     )
 
-    if mentions_shared_browser or (wants_shared_browser and wants_open) or bare_browser_command:
-        # Steel is the active shared-browser provider. Its interactive debug URL
-        # lets Beniyl watch and take over the same cloud browser session.
-        result = steel_create_session()
+    wants_google = wants_open and ("גוגל" in text or "google" in text.lower())
+
+    # Browserless sessions on the free tier are short-lived. Do not pretend an old
+    # browser is still attached to the chat: every explicit open-browser request
+    # starts a fresh live session and returns its current viewer URL.
+    if mentions_shared_browser or (wants_shared_browser and wants_open) or bare_browser_command or wants_google:
+        result = steel_create_session()  # compatibility name; provider is Browserless
         if not result.get("ok"):
-            return "לא הצלחתי לפתוח דפדפן משותף דרך Steel: " + str(result.get("error") or result)
+            return "לא הצלחתי לפתוח את הדפדפן דרך Browserless: " + str(result.get("error") or result)
         live_url = result.get("debug_url")
         if not live_url:
-            return "Steel פתח סשן, אבל לא החזיר קישור צפייה חי."
-        return "פתחתי דפדפן משותף דרך Steel. הנה הקישור החי:\\n" + live_url
+            return "Browserless פתח סשן, אבל לא החזיר קישור צפייה חי."
+        return "פתחתי עכשיו דפדפן חדש דרך Browserless. הנה הקישור החי:\\n" + live_url
 
     prefixes = ["תזכור ", "תזכרי ", "תשמור ", "תשמרי ", "שמור ", "שמרי "]
     for prefix in prefixes:
