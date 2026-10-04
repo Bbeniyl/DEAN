@@ -34,7 +34,7 @@ def _ws_url():
     p = urlparse(BASE_URL)
     scheme = "wss" if p.scheme == "https" else "ws"
     host = p.netloc or p.path
-    return urlunparse((scheme, host, "/chromium", "", f"token={quote(TOKEN, safe='')}", ""))
+    return urlunparse((scheme, host, "/chromium", "", f"token={quote(TOKEN, safe='')}&timeout=86400000", ""))
 
 
 def status():
