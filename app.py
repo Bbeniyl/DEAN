@@ -71,6 +71,21 @@ def _browser_session_diag_later():
         print("BROWSER_SESSION_DIAG", {"ok": False, "error": type(exc).__name__}, flush=True)
 threading.Thread(target=_browser_session_diag_later, daemon=True, name="browser-session-diag").start()
 
+def _persistent_browser_diag_later():
+    time.sleep(18)
+    try:
+        st = persistent_browser_status()
+        print("PERSISTENT_BROWSER_DIAG", {
+            "connected": bool(st.get("connected")),
+            "viewer_ready": bool(st.get("viewer_ready")),
+            "started": bool(st.get("started")),
+            "last_error": str(st.get("last_error") or "")[:160],
+            "target_id_present": bool(st.get("target_id")),
+        }, flush=True)
+    except Exception as exc:
+        print("PERSISTENT_BROWSER_DIAG", {"error": type(exc).__name__}, flush=True)
+threading.Thread(target=_persistent_browser_diag_later, daemon=True, name="persistent-browser-diag").start()
+
 # Safe startup diagnostic: never logs the Steel key itself.
 try:
     _steel_raw = os.getenv("STEEL_API_KEY", "")
@@ -1343,7 +1358,7 @@ button{font-size:15px;padding:10px 14px;border:1px solid rgba(255,255,255,.10);b
 </head>
 <body>
 <div class="topbar">
-<input id="url" value="https://duckduckgo.com/?kl=il-he" autocomplete="off" autocapitalize="none">
+<input id="url" value="https://www.google.com" autocomplete="off" autocapitalize="none">
 <button id="go">פתח</button>
 <button id="reload">רענן</button>
 </div>
