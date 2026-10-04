@@ -450,7 +450,7 @@ def maybe_handle_local_command(message):
     if shared_context and image_match2:
         query = image_match2.group(1).strip(" .,!?:;")
         if query:
-            ok = persistent_browser_navigate("https://www.bing.com/images/search?setlang=he-IL&cc=il&q=" + quote_plus(query))
+            ok = persistent_browser_navigate("https://duckduckgo.com/?kl=il-he&iax=images&ia=images&q=" + quote_plus(query))
             if ok:
                 return "בוצע. פתחתי במסך המשותף חיפוש תמונות: " + query
             ensure_persistent_browser()
@@ -459,7 +459,7 @@ def maybe_handle_local_command(message):
     if shared_context and image_match:
         query = image_match.group(1).strip(" .,!?:;")
         if query:
-            ok = persistent_browser_navigate("https://www.bing.com/images/search?setlang=he-IL&cc=il&q=" + quote_plus(query))
+            ok = persistent_browser_navigate("https://duckduckgo.com/?kl=il-he&iax=images&ia=images&q=" + quote_plus(query))
             if ok:
                 return "בוצע. פתחתי במסך המשותף חיפוש תמונות: " + query
             ensure_persistent_browser()
@@ -472,7 +472,7 @@ def maybe_handle_local_command(message):
         if query:
             # Google blocks Render datacenter IPs with reCAPTCHA, so use Bing as the
             # working search engine but force Hebrew/Israel UI and keep only the user's terms.
-            url = "https://www.bing.com/search?setlang=he-IL&cc=il&q=" + quote_plus(query)
+            url = "https://duckduckgo.com/?kl=il-he&q=" + quote_plus(query)
             ok = persistent_browser_navigate(url)
             if ok:
                 return "בוצע. חיפשתי במסך המשותף: " + query
@@ -639,7 +639,7 @@ def dean_instructions(current_message=""):
 כלל ביצוע:
 - לפני פעולה חיצונית רגישה, צור בקשת אישור ברורה ואל תטען שהפעולה בוצעה לפני שיש כלי אמיתי ותוצאה מאומתת.
 - כשאין עדיין כלי שמסוגל לבצע פעולה, אמור במדויק שהכלי עדיין לא מחובר במקום להעמיד פנים שביצעת.
-- כלי browser_run שולט בדפדפן המשותף הקבוע של DEAN שרץ ב-Render. כשבניאל אומר "במסך המשותף", "בגוגל", "תראה לי תמונות", "תחפש", "תמצא", או בקשה דומה, פרש אותה כפקודת דפדפן ובצע אותה בפועל. אם הוא מבקש תמונות, פתח מנוע תמונות זמין במסך המשותף. אם Google חוסם את שרת הענן ב-CAPTCHA, השתמש אוטומטית ב-Bing כדי להשלים את החיפוש בפועל ואל תטען שזה Google. אל תגיד שאין כלי גלישה לפני שניסית וקיבלת שגיאה אמיתית.\n- כאשר כלי ביצוע מחובר, פעל כמתזמר: בחר את הכלי המתאים, בצע, בדוק תוצאה, תקן אם נכשל והמשך עד השלמת המטרה.
+- כלי browser_run שולט בדפדפן המשותף הקבוע של DEAN שרץ ב-Render. כשבניאל אומר "במסך המשותף", "בגוגל", "תראה לי תמונות", "תחפש", "תמצא", או בקשה דומה, פרש אותה כפקודת דפדפן ובצע אותה בפועל. אם הוא מבקש תמונות, פתח חיפוש תמונות במסך המשותף. Google עלול לחסום שרתי ענן ב-CAPTCHA, לכן השתמש אוטומטית במנוע חיפוש חלופי שאינו Microsoft, ובמידת הצורך עבור לאתר המקור עצמו. אל תגיד שאין כלי גלישה לפני שניסית וקיבלת שגיאה אמיתית.\n- כאשר כלי ביצוע מחובר, פעל כמתזמר: בחר את הכלי המתאים, בצע, בדוק תוצאה, תקן אם נכשל והמשך עד השלמת המטרה.
 """.strip()
 
 def run_browser_agent(url, goal):
@@ -660,14 +660,14 @@ def run_browser_agent(url, goal):
         m = re.search(r"(?:תראה לי\s+)?(?:תמונות(?:\s+של)?|תביא לי תמונות של|images?\s+(?:of|for)?)\s+(.+)$", goal_text, re.I)
         if m:
             q = m.group(1).strip(" .,!?:;")
-            ok = persistent_browser_navigate("https://www.bing.com/images/search?setlang=he-IL&cc=il&q=" + quote_plus(q))
+            ok = persistent_browser_navigate("https://duckduckgo.com/?kl=il-he&iax=images&ia=images&q=" + quote_plus(q))
             return {"ok": bool(ok), "action": "google_images", "query": q}
 
         # Ordinary Google-search intent.
         m = re.search(r"(?:חפש|תחפש|search(?:\s+for)?)", goal_text, re.I)
         if m:
             q = extract_search_query(goal_text)
-            ok = persistent_browser_navigate("https://www.bing.com/search?setlang=he-IL&cc=il&q=" + quote_plus(q))
+            ok = persistent_browser_navigate("https://duckduckgo.com/?kl=il-he&q=" + quote_plus(q))
             return {"ok": bool(ok), "action": "web_search", "query": q}
 
         if url_text:
@@ -1164,19 +1164,22 @@ SHARED_BROWSER_HTML = r"""
 <title>DEAN Browser</title>
 <style>
 *{box-sizing:border-box}
-body{margin:0;background:#111;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow:hidden}
-.topbar{display:flex;gap:8px;padding:10px;background:#1c1c1e;align-items:center}
-input{font-size:16px;padding:10px 12px;border-radius:10px;border:0}
+body{margin:0;color:#eef6ff;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",sans-serif;overflow:hidden;background:
+radial-gradient(circle at 15% 0%,rgba(43,210,255,.16),transparent 34%),
+radial-gradient(circle at 90% 100%,rgba(121,92,255,.14),transparent 32%),
+#06080d}
+.topbar{display:flex;gap:8px;padding:10px 12px;background:rgba(10,14,22,.78);backdrop-filter:blur(22px);align-items:center;border-bottom:1px solid rgba(255,255,255,.08);box-shadow:0 12px 35px rgba(0,0,0,.25)}
+input{font-size:16px;padding:11px 14px;border-radius:14px;border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.06);color:#f5f9ff;outline:none;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
 #url{flex:1;direction:ltr;text-align:left}
-button{font-size:16px;padding:10px 14px;border:0;border-radius:10px}
+button{font-size:15px;padding:10px 14px;border:1px solid rgba(255,255,255,.10);border-radius:13px;background:linear-gradient(180deg,rgba(255,255,255,.12),rgba(255,255,255,.05));color:#eef6ff;box-shadow:0 8px 24px rgba(0,0,0,.18)}
 .main{display:grid;grid-template-columns:1fr;height:calc(100vh - 62px)}
-.browserPane{min-width:0;display:flex;flex-direction:column;background:#000}
-.typebar{display:flex;gap:8px;padding:8px;background:#1c1c1e}
+.browserPane{min-width:0;display:flex;flex-direction:column;background:transparent;padding:10px}
+.typebar{display:flex;gap:8px;padding:8px 0}
 #typeText{flex:1}
-.small{font-size:13px;opacity:.75;padding:4px 10px}
-.stage{display:flex;justify-content:center;align-items:flex-start;background:#000;min-height:0;overflow:auto;flex:1}
-#screen{width:100%;max-width:1024px;height:auto;display:block;touch-action:manipulation;background:#fff}
-.chatPane{position:fixed;right:18px;bottom:18px;width:300px;height:360px;z-index:20;background:#0f1115;display:none;flex-direction:column;min-width:0;border:1px solid #333;border-radius:18px;box-shadow:0 18px 50px rgba(0,0,0,.45);overflow:hidden}
+.small{font-size:12px;color:#8fa6bf;padding:4px 4px 8px}
+.stage{display:flex;justify-content:center;align-items:flex-start;background:#0b0f16;min-height:0;overflow:auto;flex:1;border:1px solid rgba(255,255,255,.08);border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,.38);overflow:hidden}
+#screen{width:100%;max-width:1024px;height:auto;display:block;touch-action:manipulation;background:#fff;border-radius:18px}
+.chatPane{position:fixed;right:18px;bottom:18px;width:290px;height:340px;z-index:30;background:rgba(10,14,22,.94);backdrop-filter:blur(22px);display:none;flex-direction:column;min-width:0;border:1px solid rgba(100,220,255,.22);border-radius:22px;box-shadow:0 24px 70px rgba(0,0,0,.55),0 0 35px rgba(54,194,255,.10);overflow:hidden}
 .chatPane.open{display:flex}
 .chatHead{padding:10px 12px;border-bottom:1px solid #2a2d33;font-weight:700;display:flex;justify-content:space-between;align-items:center;cursor:move;touch-action:none}
 .chatMsgs{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
@@ -1185,7 +1188,8 @@ button{font-size:16px;padding:10px 14px;border:0;border-radius:10px}
 .msg.assistant{background:#24272e;align-self:flex-end}
 .chatForm{display:flex;gap:8px;padding:10px;border-top:1px solid #2a2d33}
 #chatInput{flex:1;min-width:0}
-#chatToggle{display:inline-block;white-space:nowrap}
+#chatToggle{display:inline-grid;place-items:center;position:fixed;right:18px;bottom:18px;z-index:29;width:54px;height:54px;padding:0;border-radius:50%;font-size:0;background:linear-gradient(135deg,#5ce1ff,#7b61ff);box-shadow:0 12px 34px rgba(75,174,255,.42);border:1px solid rgba(255,255,255,.25)}
+#chatToggle::after{content:"D";font-size:21px;font-weight:900;color:#061019}
 @media(max-width:900px){
   .main{grid-template-columns:1fr}
 }
@@ -1196,10 +1200,10 @@ button{font-size:16px;padding:10px 14px;border:0;border-radius:10px}
 </head>
 <body>
 <div class="topbar">
-<input id="url" value="https://www.bing.com/?setlang=he-IL&cc=il" autocomplete="off" autocapitalize="none">
+<input id="url" value="https://duckduckgo.com/?kl=il-he" autocomplete="off" autocapitalize="none">
 <button id="go">פתח</button>
 <button id="reload">רענן</button>
-<button id="chatToggle">דבר עם דין</button>
+<button id="chatToggle" title="דבר עם דין" aria-label="דבר עם דין">D</button>
 </div>
 
 <div class="main">
