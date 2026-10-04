@@ -1186,8 +1186,9 @@ button{font-size:15px;padding:10px 14px;border:1px solid rgba(255,255,255,.10);b
 .msg{padding:10px 12px;border-radius:14px;white-space:pre-wrap;line-height:1.35}
 .msg.user{background:#234c7a;align-self:flex-start}
 .msg.assistant{background:#24272e;align-self:flex-end}
-.chatForm{display:flex;gap:8px;padding:10px;border-top:1px solid #2a2d33}
+.chatForm{display:flex;gap:8px;padding:10px;border-top:1px solid #2a2d33;align-items:center}
 #chatInput{flex:1;min-width:0}
+#chatMic{width:42px;height:42px;padding:0;border-radius:50%;font-size:18px}
 #chatToggle{display:grid;place-items:center;position:fixed;right:22px;bottom:22px;z-index:9999;width:58px;height:58px;padding:0;border-radius:50%;font-size:0;background:linear-gradient(135deg,#5ce1ff,#7b61ff);box-shadow:0 12px 34px rgba(75,174,255,.42);border:1px solid rgba(255,255,255,.25)}
 #chatToggle::after{content:"D";font-size:21px;font-weight:900;color:#061019}
 @media(max-width:900px){
@@ -1223,8 +1224,9 @@ button{font-size:15px;padding:10px 14px;border:1px solid rgba(255,255,255,.10);b
     </div>
     <div class="chatMsgs" id="chatMsgs"></div>
     <form class="chatForm" id="chatForm">
+      <button type="button" id="chatMic" title="דבר עם דין">🎙️</button>
       <input id="chatInput" placeholder="דבר עם דין..." autocomplete="off">
-      <button>שלח</button>
+      <button type="submit">שלח</button>
     </form>
   </aside>
 </div>
@@ -1303,13 +1305,11 @@ function addMsg(role,text){
   msgs.appendChild(d);
   msgs.scrollTop=msgs.scrollHeight;
 }
-document.getElementById("chatForm").addEventListener("submit",async e=>{
-  e.preventDefault();
-  const input=document.getElementById("chatInput");
-  const text=input.value.trim();
+async function sendDeanMessage(text){
+  text=(text||"").trim();
   if(!text)return;
   addMsg("user",text);
-  input.value="";
+  status.textContent="DEAN מבצע...";
   try{
     const r=await fetch("/api/chat",{
       method:"POST",
@@ -1319,10 +1319,43 @@ document.getElementById("chatForm").addEventListener("submit",async e=>{
     });
     const data=await r.json();
     addMsg("assistant",data.answer||data.error||"לא התקבלה תשובה");
+    setTimeout(refresh,250);
+    setTimeout(refresh,900);
+    status.textContent="DEAN Browser · מחובר";
   }catch(e){
     addMsg("assistant","שגיאה בחיבור לדין");
+    status.textContent="שגיאה בחיבור לדין";
   }
+}
+
+document.getElementById("chatForm").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const input=document.getElementById("chatInput");
+  const text=input.value.trim();
+  input.value="";
+  await sendDeanMessage(text);
 });
+
+document.getElementById("chatMic").onclick=()=>{
+  const R=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!R){
+    addMsg("assistant","הכתבה קולית לא זמינה בדפדפן הזה.");
+    return;
+  }
+  const r=new R();
+  r.lang="he-IL";
+  r.interimResults=false;
+  r.continuous=false;
+  document.getElementById("chatMic").textContent="●";
+  status.textContent="DEAN מקשיב...";
+  r.onresult=async e=>{
+    const said=e.results[0][0].transcript.trim();
+    if(said) await sendDeanMessage(said);
+  };
+  r.onerror=()=>{status.textContent="לא שמעתי. נסה שוב.";};
+  r.onend=()=>{document.getElementById("chatMic").textContent="🎙️";};
+  r.start();
+};
 </script>
 </body>
 </html>
