@@ -23,6 +23,8 @@ _state = {
     "last_error": "",
     "target_id": None,
     "viewer_ready": False,
+    "last_frame_at": 0,
+    "reconnects": 0,
 }
 
 
@@ -39,7 +41,12 @@ def _ws_url():
 
 def status():
     with _lock:
-        return dict(_state)
+        out = dict(_state)
+    last = float(out.get("last_frame_at") or 0)
+    out["frame_age"] = round(time.time() - last, 1) if last else None
+    if last and time.time() - last > 12:
+        out["viewer_ready"] = False
+    return out
 
 
 def _set(**kwargs):
@@ -70,7 +77,12 @@ def _send(method, params=None, session_id=None):
 def _wait_for_response(ws, wanted_id, timeout=20):
     deadline = time.time() + timeout
     while time.time() < deadline:
-        raw = ws.recv()
+        try:
+            raw = ws.recv()
+        except Exception as exc:
+            if "timed out" in str(exc).lower() and time.time() < deadline:
+                continue
+            raise
         if not raw:
             raise RuntimeError("browser websocket closed")
         event = json.loads(raw)
@@ -86,7 +98,7 @@ def _runner():
         try:
             _set(started=True, connected=False, viewer_ready=False, last_error="")
             ws = websocket.create_connection(_ws_url(), timeout=30, origin=BASE_URL)
-            ws.settimeout(None)
+            ws.settimeout(8)
             _ws = ws
             _set(connected=True, last_error="")
 
@@ -121,8 +133,14 @@ def _runner():
                     "captureBeyondViewport": False
                 }, session_id)
                 deadline = time.time() + 12
+                got_frame = False
                 while time.time() < deadline:
-                    raw = ws.recv()
+                    try:
+                        raw = ws.recv()
+                    except Exception as exc:
+                        if "timed out" in str(exc).lower():
+                            continue
+                        raise
                     if not raw:
                         raise RuntimeError("browser websocket closed")
                     try:
@@ -136,11 +154,17 @@ def _runner():
                                 frame = base64.b64decode(data)
                                 with _lock:
                                     _latest_frame = frame
+                                    _state["last_frame_at"] = time.time()
+                                got_frame = True
                             except Exception:
                                 pass
                         break
+                if not got_frame:
+                    raise RuntimeError("browser frame stalled")
                 time.sleep(0.65)
         except Exception as exc:
+            with _lock:
+                _state["reconnects"] = int(_state.get("reconnects") or 0) + 1
             _set(connected=False, viewer_ready=False, last_error=f"{type(exc).__name__}: {str(exc)[:180]}")
             _ws = None
             _cdp_session_id = None
