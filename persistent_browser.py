@@ -209,3 +209,25 @@ def press_key(key):
     _send("Input.dispatchKeyEvent", {"type": "keyDown", "key": key}, sid)
     _send("Input.dispatchKeyEvent", {"type": "keyUp", "key": key}, sid)
     return True
+
+
+def _keep_browser_service_awake():
+    """Keep the free Render browser service warm so its Chromium session does not hibernate."""
+    import requests as _requests
+    while True:
+        try:
+            if BASE_URL and TOKEN:
+                _requests.get(
+                    BASE_URL + "/active",
+                    params={"token": TOKEN},
+                    timeout=12,
+                )
+        except Exception:
+            pass
+        time.sleep(240)
+
+
+def start_keepalive():
+    t = threading.Thread(target=_keep_browser_service_awake, daemon=True, name="dean-browser-keepalive")
+    t.start()
+    return True
