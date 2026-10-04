@@ -397,6 +397,23 @@ def start_tinyfish_live_browser(url="https://www.google.com", goal="Open the pag
         return {"ok": True, "live_url": live}
     return {"ok": False, "error": state.get("error") or "live_url_timeout"}
 
+def extract_search_query(text):
+    """Extract only the user's search terms from natural Hebrew/English search commands."""
+    s = re.sub(r"[\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff]", "", str(text))
+    s = " ".join(s.split()).strip(" .,!?:;")
+    # Remove DEAN wake word/name.
+    s = re.sub(r"^(?:דין|dean)\s+", "", s, flags=re.I)
+    # Remove common command prefixes.
+    s = re.sub(r"^(?:שומע\s+)?(?:חפש(?:\s+לי)?|תחפש(?:\s+לי)?|תמצא(?:\s+לי)?|תעשה\s+לי\s+חיפוש|תראה\s+לי)\s+", "", s, flags=re.I)
+    # Remove browser/provider phrasing.
+    s = re.sub(r"^(?:ב[- ]?(?:google|גוגל)|(?:google|גוגל)|במסך\s+המשותף|בדפדפן\s+המשותף)\s+", "", s, flags=re.I)
+    # Speech-to-text filler before the actual term.
+    s = re.sub(r"^(?:סי\s+)?", "", s, flags=re.I)
+    # Remove trailing execution phrasing if the model/user adds it.
+    s = re.sub(r"\s+(?:והצג|ותראה|במסך\s+המשותף|בדפדפן\s+המשותף).*$", "", s, flags=re.I)
+    # Trim wrapping quotes.
+    return s.strip(" \"'׳״.,!?;:")
+
 def maybe_handle_local_command(message):
     # Normalize real bidi/control characters that can arrive from iPad/Safari/voice input.
     text = re.sub(r"[\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff]", "", str(message))
@@ -433,7 +450,7 @@ def maybe_handle_local_command(message):
     if shared_context and image_match2:
         query = image_match2.group(1).strip(" .,!?:;")
         if query:
-            ok = persistent_browser_navigate("https://www.bing.com/images/search?q=" + quote_plus(query))
+            ok = persistent_browser_navigate("https://www.bing.com/images/search?setlang=he-IL&cc=il&q=" + quote_plus(query))
             if ok:
                 return "בוצע. פתחתי במסך המשותף חיפוש תמונות: " + query
             ensure_persistent_browser()
@@ -442,22 +459,21 @@ def maybe_handle_local_command(message):
     if shared_context and image_match:
         query = image_match.group(1).strip(" .,!?:;")
         if query:
-            ok = persistent_browser_navigate("https://www.bing.com/images/search?q=" + quote_plus(query))
+            ok = persistent_browser_navigate("https://www.bing.com/images/search?setlang=he-IL&cc=il&q=" + quote_plus(query))
             if ok:
                 return "בוצע. פתחתי במסך המשותף חיפוש תמונות: " + query
             ensure_persistent_browser()
             return "הדפדפן המשותף מתחבר. נסה שוב בעוד כמה שניות."
 
-    search_match = re.search(r"(?:חפש|תחפש|חפש לי|תחפש לי|תעשה לי חיפוש|תמצא|תראה לי)(?:\s+(?:בגוגל|ב-google|בgoogle|google|גוגל))?\s+(.+)$", text, re.I)
-    # A direct Google/search command should always use DEAN's shared browser,
-    # even when Beniyl doesn't explicitly say "shared screen".
-    google_context = shared_context or ("גוגל" in text.lower()) or ("google" in text.lower())
-    if search_match and (google_context or text.startswith(("חפש", "תחפש", "חפש לי", "תחפש לי", "תמצא"))):
-        query = search_match.group(1).strip(" .,!?:;")
-        # Strip a leading Google token that speech-to-text sometimes leaves in the query.
-        query = re.sub(r"^(?:ב[- ]?google|google|בגוגל|גוגל)\s+", "", query, flags=re.I)
+    # Any explicit search command goes straight to DEAN's persistent shared browser.
+    search_intent = re.search(r"(?:^|\s)(?:חפש(?:\s+לי)?|תחפש(?:\s+לי)?|תמצא(?:\s+לי)?|תעשה\s+לי\s+חיפוש)(?:\s|$)", text, re.I)
+    if search_intent:
+        query = extract_search_query(text)
         if query:
-            ok = persistent_browser_navigate("https://www.bing.com/search?q=" + quote_plus(query))
+            # Google blocks Render datacenter IPs with reCAPTCHA, so use Bing as the
+            # working search engine but force Hebrew/Israel UI and keep only the user's terms.
+            url = "https://www.bing.com/search?setlang=he-IL&cc=il&q=" + quote_plus(query)
+            ok = persistent_browser_navigate(url)
             if ok:
                 return "בוצע. חיפשתי במסך המשותף: " + query
             ensure_persistent_browser()
@@ -644,15 +660,15 @@ def run_browser_agent(url, goal):
         m = re.search(r"(?:תראה לי\s+)?(?:תמונות(?:\s+של)?|תביא לי תמונות של|images?\s+(?:of|for)?)\s+(.+)$", goal_text, re.I)
         if m:
             q = m.group(1).strip(" .,!?:;")
-            ok = persistent_browser_navigate("https://www.bing.com/images/search?q=" + quote_plus(q))
+            ok = persistent_browser_navigate("https://www.bing.com/images/search?setlang=he-IL&cc=il&q=" + quote_plus(q))
             return {"ok": bool(ok), "action": "google_images", "query": q}
 
         # Ordinary Google-search intent.
-        m = re.search(r"(?:חפש|תחפש|search(?:\s+for)?)\s+(.+)$", goal_text, re.I)
+        m = re.search(r"(?:חפש|תחפש|search(?:\s+for)?)", goal_text, re.I)
         if m:
-            q = m.group(1).strip(" .,!?:;")
-            ok = persistent_browser_navigate("https://www.bing.com/search?q=" + quote_plus(q))
-            return {"ok": bool(ok), "action": "google_search", "query": q}
+            q = extract_search_query(goal_text)
+            ok = persistent_browser_navigate("https://www.bing.com/search?setlang=he-IL&cc=il&q=" + quote_plus(q))
+            return {"ok": bool(ok), "action": "web_search", "query": q}
 
         if url_text:
             ok = persistent_browser_navigate(url_text)
@@ -1160,7 +1176,7 @@ button{font-size:16px;padding:10px 14px;border:0;border-radius:10px}
 </head>
 <body>
 <div class="bar">
-<input id="url" value="https://www.google.com" autocomplete="off" autocapitalize="none">
+<input id="url" value="https://www.bing.com/?setlang=he-IL&cc=il" autocomplete="off" autocapitalize="none">
 <button id="go">פתח</button>
 <button id="reload">רענן</button>
 </div>
