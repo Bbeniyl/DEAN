@@ -15,6 +15,7 @@ from flask import (
 )
 from openai import OpenAI
 from steel_client import configured as steel_configured, create_session as steel_create_session, validate_key as steel_validate_key
+from persistent_browser import ensure_started as ensure_persistent_browser, status as persistent_browser_status
 
 app = Flask(__name__)
 
@@ -50,6 +51,9 @@ app.config.update(
 )
 
 client = OpenAI(api_key=OPENAI_API_KEY)
+
+# Start DEAN's long-lived self-hosted Chromium connection in the background.
+ensure_persistent_browser()
 
 # Safe startup diagnostic: never logs the Steel key itself.
 try:
@@ -1215,6 +1219,7 @@ def health():
             steel_configured=steel.get("configured", False),
             steel_authenticated=steel.get("authenticated", False),
             steel_status_code=steel.get("status_code"),
+            persistent_browser=persistent_browser_status(),
         )
     except Exception:
         app.logger.exception("Health check failed")
