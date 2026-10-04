@@ -14,7 +14,7 @@ from flask import (
     jsonify, render_template_string, abort, Response
 )
 from openai import OpenAI
-from steel_client import configured as steel_configured, create_session as steel_create_session, validate_key as steel_validate_key
+from steel_client import configured as steel_configured, create_session as steel_create_session, validate_key as steel_validate_key, active_session_status
 from persistent_browser import ensure_started as ensure_persistent_browser, status as persistent_browser_status
 
 app = Flask(__name__)
@@ -1220,6 +1220,7 @@ def health():
             steel_authenticated=steel.get("authenticated", False),
             steel_status_code=steel.get("status_code"),
             persistent_browser=persistent_browser_status(),
+            browser_sessions=active_session_status(),
         )
     except Exception:
         app.logger.exception("Health check failed")
