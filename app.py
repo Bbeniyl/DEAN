@@ -515,6 +515,34 @@ def open_saved_search_result(number=1):
     return bool(persistent_browser_navigate(url)), item
 
 
+def normalize_search_query(query):
+    """Clean speech-to-text mistakes in search terms without changing the user's intent."""
+    q = " ".join(str(query or "").split()).strip()
+    if not q:
+        return q
+    low = q.lower()
+
+    # Common Hebrew speech-to-text variants for CFMOTO.
+    cfmoto_patterns = [
+        r"\bסי\s*אף\s*מוטו\b",
+        r"\bסי\s*אפ\s*מוטו\b",
+        r"\bסי\s*אף\b",
+        r"\bסי\s*אפ\b",
+        r"\bסיף\s*מוטו\b",
+        r"\bסיף\b",
+        r"\bציף\s*מוטו\b",
+        r"\bציף\b",
+        r"\bסיה\b",
+    ]
+    if any(re.search(p, low, re.I) for p in cfmoto_patterns):
+        for p in cfmoto_patterns:
+            q = re.sub(p, "CFMOTO", q, flags=re.I)
+
+    # If CFMOTO appears more than once because of a noisy transcript, keep one.
+    q = re.sub(r"(?:CFMOTO\s*){2,}", "CFMOTO ", q, flags=re.I)
+    return " ".join(q.split()).strip()
+
+
 def extract_search_query(text):
     """Extract only the actual search terms from natural Hebrew/English speech."""
     s = re.sub(r"[\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff]", "", str(text))
@@ -569,7 +597,7 @@ def maybe_handle_local_command(message):
         re.I,
     )
     if generic_image and ("תמונה" in text):
-        query = generic_image.group(1).strip(" .,!?:;")
+        query = normalize_search_query(generic_image.group(1).strip(" .,!?:;"))
         if query:
             ok, count = open_backend_search_results(query + " images photos")
             if ok:
@@ -625,7 +653,7 @@ def maybe_handle_local_command(message):
     # Any explicit search command goes straight to DEAN's persistent shared browser.
     search_intent = re.search(r"(?:^|\s)(?:חפש(?:\s+לי)?|תחפש(?:\s+לי)?|תמצא(?:\s+לי)?|תעשה\s+לי\s+חיפוש)(?:\s|$)", text, re.I)
     if search_intent:
-        query = extract_search_query(text)
+        query = normalize_search_query(extract_search_query(text))
         if query:
             ok, count = open_backend_search_results(query)
             if ok:
@@ -816,14 +844,14 @@ def run_browser_agent(url, goal):
         # Image-search requests go straight to Google Images in the shared browser.
         m = re.search(r"(?:תראה לי\s+)?(?:תמונות(?:\s+של)?|תביא לי תמונות של|images?\s+(?:of|for)?)\s+(.+)$", goal_text, re.I)
         if m:
-            q = m.group(1).strip(" .,!?:;")
+            q = normalize_search_query(m.group(1).strip(" .,!?:;"))
             ok, count = open_backend_search_results(q + " images photos")
             return {"ok": bool(ok), "action": "image_web_search", "query": q, "results": count}
 
         # Ordinary Google-search intent.
         m = re.search(r"(?:חפש|תחפש|search(?:\s+for)?)", goal_text, re.I)
         if m:
-            q = extract_search_query(goal_text)
+            q = normalize_search_query(extract_search_query(goal_text))
             ok, count = open_backend_search_results(q)
             return {"ok": bool(ok), "action": "web_search", "query": q, "results": count}
 
