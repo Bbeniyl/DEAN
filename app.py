@@ -1176,18 +1176,21 @@ button{font-size:16px;padding:10px 14px;border:0;border-radius:10px}
 .small{font-size:13px;opacity:.75;padding:4px 10px}
 .stage{display:flex;justify-content:center;align-items:flex-start;background:#000;min-height:0;overflow:auto;flex:1}
 #screen{width:100%;max-width:1024px;height:auto;display:block;touch-action:manipulation;background:#fff}
-.chatPane{position:fixed;right:0;top:62px;bottom:0;width:min(360px,88vw);z-index:20;background:#0f1115;display:flex;flex-direction:column;min-width:0;transform:translateX(100%);transition:.2s;border-left:1px solid #333}
-.chatPane.open{transform:translateX(0)}
-.chatHead{padding:12px 14px;border-bottom:1px solid #2a2d33;font-weight:700;display:flex;justify-content:space-between;align-items:center}
+.chatPane{position:fixed;right:18px;bottom:18px;width:300px;height:360px;z-index:20;background:#0f1115;display:none;flex-direction:column;min-width:0;border:1px solid #333;border-radius:18px;box-shadow:0 18px 50px rgba(0,0,0,.45);overflow:hidden}
+.chatPane.open{display:flex}
+.chatHead{padding:10px 12px;border-bottom:1px solid #2a2d33;font-weight:700;display:flex;justify-content:space-between;align-items:center;cursor:move;touch-action:none}
 .chatMsgs{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
 .msg{padding:10px 12px;border-radius:14px;white-space:pre-wrap;line-height:1.35}
 .msg.user{background:#234c7a;align-self:flex-start}
 .msg.assistant{background:#24272e;align-self:flex-end}
 .chatForm{display:flex;gap:8px;padding:10px;border-top:1px solid #2a2d33}
 #chatInput{flex:1;min-width:0}
-#chatToggle{display:inline-block}
+#chatToggle{display:inline-block;white-space:nowrap}
 @media(max-width:900px){
   .main{grid-template-columns:1fr}
+}
+@media(max-width:600px){
+  .chatPane{width:270px;height:320px;right:10px;bottom:10px}
 }
 </style>
 </head>
@@ -1265,6 +1268,29 @@ img.onload=()=>{status.textContent="DEAN Browser · מחובר";};
 
 document.getElementById("chatToggle").onclick=()=>pane.classList.add("open");
 document.getElementById("closeChat").onclick=()=>pane.classList.remove("open");
+
+// Draggable floating DEAN window for iPad.
+const dragHead=pane.querySelector(".chatHead");
+let dragging=false, startX=0, startY=0, startLeft=0, startTop=0;
+dragHead.addEventListener("pointerdown",e=>{
+  if(e.target.closest("button")) return;
+  dragging=true;
+  dragHead.setPointerCapture(e.pointerId);
+  const r=pane.getBoundingClientRect();
+  startX=e.clientX; startY=e.clientY; startLeft=r.left; startTop=r.top;
+  pane.style.right="auto"; pane.style.bottom="auto";
+  pane.style.left=startLeft+"px"; pane.style.top=startTop+"px";
+});
+dragHead.addEventListener("pointermove",e=>{
+  if(!dragging)return;
+  const maxL=Math.max(0,window.innerWidth-pane.offsetWidth);
+  const maxT=Math.max(62,window.innerHeight-pane.offsetHeight);
+  const left=Math.min(maxL,Math.max(0,startLeft+(e.clientX-startX)));
+  const top=Math.min(maxT,Math.max(62,startTop+(e.clientY-startY)));
+  pane.style.left=left+"px"; pane.style.top=top+"px";
+});
+dragHead.addEventListener("pointerup",()=>{dragging=false;});
+dragHead.addEventListener("pointercancel",()=>{dragging=false;});
 
 function addMsg(role,text){
   const d=document.createElement("div");
