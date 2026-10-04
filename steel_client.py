@@ -178,3 +178,30 @@ def validate_key():
         "provider": "browserless",
         "error": data.get("errors") if isinstance(data, dict) and data.get("errors") else None,
     }
+
+
+def active_session_status():
+    """Safe diagnostics for self-hosted Browserless; never returns the token."""
+    key = api_key()
+    if not key or not _is_self_hosted():
+        return {"ok": False, "count": 0, "error": "not_self_hosted"}
+    try:
+        r = requests.get(f"{BASE_URL}/sessions", params={"token": key}, timeout=15)
+        if not r.ok:
+            return {"ok": False, "count": 0, "status_code": r.status_code, "error": (r.text or "")[:120]}
+        data = r.json() if r.content else []
+        items = data if isinstance(data, list) else ((data or {}).get("sessions") or [])
+        safe = []
+        for s in items:
+            if not isinstance(s, dict):
+                continue
+            safe.append({
+                "type": s.get("type"),
+                "title": s.get("title"),
+                "url": s.get("url"),
+                "has_devtools": bool(s.get("devtoolsFrontendUrl")),
+                "has_browser_ws": bool(s.get("browserWSEndpoint")),
+            })
+        return {"ok": True, "count": len(safe), "sessions": safe[:10]}
+    except Exception as exc:
+        return {"ok": False, "count": 0, "error": f"{type(exc).__name__}: {str(exc)[:120]}"}
