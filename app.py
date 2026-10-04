@@ -1169,14 +1169,15 @@ body{margin:0;background:#111;color:#fff;font-family:-apple-system,BlinkMacSyste
 input{font-size:16px;padding:10px 12px;border-radius:10px;border:0}
 #url{flex:1;direction:ltr;text-align:left}
 button{font-size:16px;padding:10px 14px;border:0;border-radius:10px}
-.main{display:grid;grid-template-columns:minmax(0,1fr) 330px;height:calc(100vh - 62px)}
+.main{display:grid;grid-template-columns:1fr;height:calc(100vh - 62px)}
 .browserPane{min-width:0;display:flex;flex-direction:column;background:#000}
 .typebar{display:flex;gap:8px;padding:8px;background:#1c1c1e}
 #typeText{flex:1}
 .small{font-size:13px;opacity:.75;padding:4px 10px}
 .stage{display:flex;justify-content:center;align-items:flex-start;background:#000;min-height:0;overflow:auto;flex:1}
 #screen{width:100%;max-width:1024px;height:auto;display:block;touch-action:manipulation;background:#fff}
-.chatPane{border-right:1px solid #333;background:#0f1115;display:flex;flex-direction:column;min-width:0}
+.chatPane{position:fixed;right:0;top:62px;bottom:0;width:min(360px,88vw);z-index:20;background:#0f1115;display:flex;flex-direction:column;min-width:0;transform:translateX(100%);transition:.2s;border-left:1px solid #333}
+.chatPane.open{transform:translateX(0)}
 .chatHead{padding:12px 14px;border-bottom:1px solid #2a2d33;font-weight:700;display:flex;justify-content:space-between;align-items:center}
 .chatMsgs{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
 .msg{padding:10px 12px;border-radius:14px;white-space:pre-wrap;line-height:1.35}
@@ -1184,12 +1185,9 @@ button{font-size:16px;padding:10px 14px;border:0;border-radius:10px}
 .msg.assistant{background:#24272e;align-self:flex-end}
 .chatForm{display:flex;gap:8px;padding:10px;border-top:1px solid #2a2d33}
 #chatInput{flex:1;min-width:0}
-#chatToggle{display:none}
+#chatToggle{display:inline-block}
 @media(max-width:900px){
   .main{grid-template-columns:1fr}
-  .chatPane{position:fixed;right:0;top:62px;bottom:0;width:min(360px,88vw);z-index:20;transform:translateX(100%);transition:.2s;border-right:0;border-left:1px solid #333}
-  .chatPane.open{transform:translateX(0)}
-  #chatToggle{display:inline-block}
 }
 </style>
 </head>
