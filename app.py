@@ -429,6 +429,16 @@ def maybe_handle_local_command(message):
     # Example: "דין כנס למסך המשותף לגוגל תעשה לי תמונות של טרקטורון סיף"
     shared_context = ("מסך המשותף" in text or "דפדפן המשותף" in text or "משותף" in text)
     image_match = re.search(r"תמונות(?:\s+בגוגל)?(?:\s+של)?\s+(.+)$", text)
+    image_match2 = re.search(r"(?:תראה לי\s+)?(?:תמונות|תמונות בגוגל|תמונות של|תביא לי תמונות של)\s+(.+)$", text)
+    if shared_context and image_match2:
+        query = image_match2.group(1).strip(" .,!?:;")
+        if query:
+            ok = persistent_browser_navigate("https://www.google.com/search?tbm=isch&q=" + quote_plus(query))
+            if ok:
+                return "בוצע. פתחתי במסך המשותף תמונות בגוגל: " + query
+            ensure_persistent_browser()
+            return "הדפדפן המשותף מתחבר. נסה שוב בעוד כמה שניות."
+
     if shared_context and image_match:
         query = image_match.group(1).strip(" .,!?:;")
         if query:
@@ -438,7 +448,7 @@ def maybe_handle_local_command(message):
             ensure_persistent_browser()
             return "הדפדפן המשותף מתחבר. נסה שוב בעוד כמה שניות."
 
-    search_match = re.search(r"(?:חפש|תחפש|תעשה לי חיפוש)(?:\s+בגוגל)?\s+(.+)$", text)
+    search_match = re.search(r"(?:חפש|תחפש|תעשה לי חיפוש|תמצא|תראה לי)(?:\s+בגוגל)?\s+(.+)$", text)
     if shared_context and search_match:
         query = search_match.group(1).strip(" .,!?:;")
         if query:
@@ -608,7 +618,7 @@ def dean_instructions(current_message=""):
 כלל ביצוע:
 - לפני פעולה חיצונית רגישה, צור בקשת אישור ברורה ואל תטען שהפעולה בוצעה לפני שיש כלי אמיתי ותוצאה מאומתת.
 - כשאין עדיין כלי שמסוגל לבצע פעולה, אמור במדויק שהכלי עדיין לא מחובר במקום להעמיד פנים שביצעת.
-- כלי browser_run שולט בדפדפן המשותף הקבוע של DEAN שרץ ב-Render. כשבניאל מבקש לפתוח אתר, לחפש בגוגל או להציג תמונות במסך המשותף, השתמש בכלי בפועל. אל תגיד שאין כלי גלישה לפני שניסית וקיבלת שגיאה אמיתית.\n- כאשר כלי ביצוע מחובר, פעל כמתזמר: בחר את הכלי המתאים, בצע, בדוק תוצאה, תקן אם נכשל והמשך עד השלמת המטרה.
+- כלי browser_run שולט בדפדפן המשותף הקבוע של DEAN שרץ ב-Render. כשבניאל אומר "במסך המשותף", "בגוגל", "תראה לי תמונות", "תחפש", "תמצא", או בקשה דומה, פרש אותה כפקודת דפדפן ובצע אותה בפועל. אם הוא מבקש תמונות, פתח Google Images. אם הוא מבקש חיפוש רגיל, פתח תוצאות Google. אל תגיד שאין כלי גלישה לפני שניסית וקיבלת שגיאה אמיתית.\n- כאשר כלי ביצוע מחובר, פעל כמתזמר: בחר את הכלי המתאים, בצע, בדוק תוצאה, תקן אם נכשל והמשך עד השלמת המטרה.
 """.strip()
 
 def run_browser_agent(url, goal):
@@ -626,7 +636,7 @@ def run_browser_agent(url, goal):
         url_text = str(url or "").strip()
 
         # Image-search requests go straight to Google Images in the shared browser.
-        m = re.search(r"(?:תמונות(?:\s+של)?|images?\s+(?:of|for)?)\s+(.+)$", goal_text, re.I)
+        m = re.search(r"(?:תראה לי\s+)?(?:תמונות(?:\s+של)?|תביא לי תמונות של|images?\s+(?:of|for)?)\s+(.+)$", goal_text, re.I)
         if m:
             q = m.group(1).strip(" .,!?:;")
             ok = persistent_browser_navigate("https://www.google.com/search?tbm=isch&q=" + quote_plus(q))
@@ -1137,7 +1147,7 @@ body{margin:0;background:#111;color:#fff;font-family:-apple-system,BlinkMacSyste
 input{flex:1;font-size:16px;padding:10px 12px;border-radius:10px;border:0}
 button{font-size:16px;padding:10px 14px;border:0;border-radius:10px}
 .stage{display:flex;justify-content:center;align-items:flex-start;background:#000;min-height:calc(100vh - 64px)}
-#screen{width:100%;max-width:1024px;height:auto;display:block;touch-action:manipulation}
+#screen{width:100%;max-width:1024px;height:auto;display:block;touch-action:manipulation;background:#fff}
 .typebar{display:flex;gap:8px;padding:8px;background:#1c1c1e}
 #typeText{flex:1}
 .small{font-size:13px;opacity:.75;padding:4px 10px}
@@ -1160,8 +1170,15 @@ button{font-size:16px;padding:10px 14px;border:0;border-radius:10px}
 const csrf={{ csrf|tojson }};
 const img=document.getElementById("screen");
 const status=document.getElementById("status");
+async function pollStatus(){
+  try{
+    const r=await fetch("/api/browser/status",{credentials:"same-origin"});
+    const d=await r.json();
+    if(d.viewer_ready){status.textContent="DEAN Browser · מחובר";}else if(d.connected){status.textContent="הדפדפן מחובר, מחכה לתמונה...";}else{status.textContent="הדפדפן מתחבר...";}
+  }catch(e){}
+}
 function refresh(){ img.src="/api/browser/frame?t="+Date.now(); }
-setInterval(refresh,450); refresh();
+setInterval(refresh,700); setInterval(pollStatus,1200); refresh(); pollStatus();
 
 img.addEventListener("click",async e=>{
   const r=img.getBoundingClientRect();
@@ -1181,7 +1198,7 @@ document.getElementById("typeBtn").onclick=async()=>{
 document.getElementById("enterBtn").onclick=async()=>{
   await fetch("/api/browser/key",{method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":csrf},body:JSON.stringify({key:"Enter"})});
 };
-img.onerror=()=>{status.textContent="הדפדפן מתחבר...";};
+img.onerror=()=>{status.textContent="אין תמונה חיה כרגע — מנסה להתחבר...";};
 img.onload=()=>{status.textContent="DEAN Browser · מחובר";};
 </script>
 </body>
@@ -1192,6 +1209,11 @@ img.onload=()=>{status.textContent="DEAN Browser · מחובר";};
 @require_login
 def shared_browser():
     return render_template_string(SHARED_BROWSER_HTML, csrf=csrf_token())
+
+@app.get("/api/browser/status")
+@require_login
+def api_browser_status():
+    return jsonify(persistent_browser_status())
 
 @app.get("/api/browser/frame")
 @require_login
