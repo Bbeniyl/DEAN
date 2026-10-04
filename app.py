@@ -15,7 +15,7 @@ from flask import (
 )
 from openai import OpenAI
 from steel_client import configured as steel_configured, create_session as steel_create_session, validate_key as steel_validate_key, active_session_status
-from persistent_browser import ensure_started as ensure_persistent_browser, status as persistent_browser_status
+from persistent_browser import ensure_started as ensure_persistent_browser, status as persistent_browser_status, latest_frame as persistent_browser_frame, navigate as persistent_browser_navigate, click as persistent_browser_click, type_text as persistent_browser_type, press_key as persistent_browser_key
 
 app = Flask(__name__)
 
@@ -425,17 +425,16 @@ def maybe_handle_local_command(message):
 
     wants_google = wants_open and ("גוגל" in text or "google" in text.lower())
 
-    # Browserless sessions on the free tier are short-lived. Do not pretend an old
-    # browser is still attached to the chat: every explicit open-browser request
-    # starts a fresh live session and returns its current viewer URL.
+    # Shared browser now uses DEAN's own live viewer for the already-running
+    # persistent Chromium session. This avoids the generic Browserless debugger.
     if mentions_shared_browser or (wants_shared_browser and wants_open) or bare_browser_command or wants_google:
-        result = steel_create_session()  # compatibility name; provider is Browserless
-        if not result.get("ok"):
-            return "לא הצלחתי לפתוח את הדפדפן דרך Browserless: " + str(result.get("error") or result)
-        live_url = result.get("debug_url")
-        if not live_url:
-            return "Browserless פתח סשן, אבל לא החזיר קישור צפייה חי."
-        return "פתחתי עכשיו דפדפן חדש דרך Browserless. הנה הקישור החי:\\n" + live_url
+        st = persistent_browser_status()
+        if wants_google:
+            persistent_browser_navigate("https://www.google.com")
+        if not st.get("connected"):
+            ensure_persistent_browser()
+            return "הדפדפן המשותף עדיין מתחבר. נסה שוב בעוד כמה שניות."
+        return "הדפדפן המשותף הפעיל:\\n" + url_for("shared_browser", _external=True)
 
     prefixes = ["תזכור ", "תזכרי ", "תשמור ", "תשמרי ", "שמור ", "שמרי "]
     for prefix in prefixes:
@@ -1082,6 +1081,115 @@ document.getElementById("logout").onclick=async()=>{
 </body>
 </html>
 """
+
+
+SHARED_BROWSER_HTML = r"""
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>DEAN Browser</title>
+<style>
+body{margin:0;background:#111;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.bar{display:flex;gap:8px;padding:10px;background:#1c1c1e;position:sticky;top:0;z-index:3}
+input{flex:1;font-size:16px;padding:10px 12px;border-radius:10px;border:0}
+button{font-size:16px;padding:10px 14px;border:0;border-radius:10px}
+.stage{display:flex;justify-content:center;align-items:flex-start;background:#000;min-height:calc(100vh - 64px)}
+#screen{width:100%;max-width:1024px;height:auto;display:block;touch-action:manipulation}
+.typebar{display:flex;gap:8px;padding:8px;background:#1c1c1e}
+#typeText{flex:1}
+.small{font-size:13px;opacity:.75;padding:4px 10px}
+</style>
+</head>
+<body>
+<div class="bar">
+<input id="url" value="https://www.google.com" autocomplete="off" autocapitalize="none">
+<button id="go">פתח</button>
+<button id="reload">רענן</button>
+</div>
+<div class="typebar">
+<input id="typeText" placeholder="כתוב בדפדפן...">
+<button id="typeBtn">הקלד</button>
+<button id="enterBtn">Enter</button>
+</div>
+<div class="small" id="status">DEAN Browser · מחובר</div>
+<div class="stage"><img id="screen" alt="הדפדפן המשותף"></div>
+<script>
+const csrf={{ csrf|tojson }};
+const img=document.getElementById("screen");
+const status=document.getElementById("status");
+function refresh(){ img.src="/api/browser/frame?t="+Date.now(); }
+setInterval(refresh,450); refresh();
+
+img.addEventListener("click",async e=>{
+  const r=img.getBoundingClientRect();
+  const x=(e.clientX-r.left)*(1024/r.width);
+  const y=(e.clientY-r.top)*(700/r.height);
+  await fetch("/api/browser/click",{method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":csrf},body:JSON.stringify({x,y})});
+});
+document.getElementById("go").onclick=async()=>{
+  const url=document.getElementById("url").value.trim();
+  await fetch("/api/browser/navigate",{method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":csrf},body:JSON.stringify({url})});
+};
+document.getElementById("reload").onclick=()=>refresh();
+document.getElementById("typeBtn").onclick=async()=>{
+  const text=document.getElementById("typeText").value;
+  await fetch("/api/browser/type",{method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":csrf},body:JSON.stringify({text})});
+};
+document.getElementById("enterBtn").onclick=async()=>{
+  await fetch("/api/browser/key",{method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":csrf},body:JSON.stringify({key:"Enter"})});
+};
+img.onerror=()=>{status.textContent="הדפדפן מתחבר...";};
+img.onload=()=>{status.textContent="DEAN Browser · מחובר";};
+</script>
+</body>
+</html>
+"""
+
+@app.get("/browser")
+@require_login
+def shared_browser():
+    return render_template_string(SHARED_BROWSER_HTML, csrf=csrf_token())
+
+@app.get("/api/browser/frame")
+@require_login
+def api_browser_frame():
+    frame = persistent_browser_frame()
+    if not frame:
+        return Response(status=503)
+    return Response(frame, mimetype="image/jpeg", headers={"Cache-Control":"no-store"})
+
+@app.post("/api/browser/navigate")
+@require_csrf
+def api_browser_navigate():
+    data=request.get_json(silent=True) or {}
+    ok=persistent_browser_navigate(data.get("url",""))
+    return jsonify(ok=bool(ok)), (200 if ok else 503)
+
+@app.post("/api/browser/click")
+@require_csrf
+def api_browser_click():
+    data=request.get_json(silent=True) or {}
+    try:
+        ok=persistent_browser_click(data.get("x"), data.get("y"))
+    except Exception:
+        ok=False
+    return jsonify(ok=bool(ok)), (200 if ok else 503)
+
+@app.post("/api/browser/type")
+@require_csrf
+def api_browser_type():
+    data=request.get_json(silent=True) or {}
+    ok=persistent_browser_type(data.get("text",""))
+    return jsonify(ok=bool(ok)), (200 if ok else 503)
+
+@app.post("/api/browser/key")
+@require_csrf
+def api_browser_key():
+    data=request.get_json(silent=True) or {}
+    ok=persistent_browser_key(data.get("key","Enter"))
+    return jsonify(ok=bool(ok)), (200 if ok else 503)
 
 @app.post("/api/speech")
 @require_login
