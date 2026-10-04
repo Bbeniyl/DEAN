@@ -44,7 +44,7 @@ def create_session():
     # it is intended to open directly in Safari/mobile and can be interactive.
     query = """mutation StartDeanSession {
       goto(url: "https://www.google.com", waitUntil: domContentLoaded) { status }
-      liveURL(interactable: true, showBrowserInterface: true, resizable: true, quality: 70) {
+      liveURL(interactable: true, showBrowserInterface: true, resizable: true, quality: 70, timeout: 180000) {
         liveURL
         timeout
       }
