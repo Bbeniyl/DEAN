@@ -109,37 +109,37 @@ def _runner():
                 "width": 1024, "height": 700, "deviceScaleFactor": 1, "mobile": False
             }, session_id)
             _send("Page.enable", {}, session_id)
-            _send("Page.startScreencast", {
-                "format": "jpeg", "quality": 65,
-                "maxWidth": 1024, "maxHeight": 700,
-                "everyNthFrame": 1
-            }, session_id)
             _set(viewer_ready=True)
 
+            # Capture the real shared page repeatedly. This is more reliable on
+            # Render/iPad than CDP screencast events and still uses the same tab.
             while True:
-                raw = ws.recv()
-                if not raw:
-                    raise RuntimeError("browser websocket closed")
-                try:
-                    event = json.loads(raw)
-                except Exception:
-                    continue
-                if event.get("method") == "Page.screencastFrame" and event.get("sessionId") == session_id:
-                    params = event.get("params") or {}
-                    data = params.get("data")
-                    if data:
-                        try:
-                            frame = base64.b64decode(data)
-                            with _lock:
-                                _latest_frame = frame
-                        except Exception:
-                            pass
-                    sid = params.get("sessionId")
-                    if sid is not None:
-                        try:
-                            _send("Page.screencastFrameAck", {"sessionId": sid}, session_id)
-                        except Exception:
-                            pass
+                shot_id = _send("Page.captureScreenshot", {
+                    "format": "jpeg",
+                    "quality": 70,
+                    "fromSurface": True,
+                    "captureBeyondViewport": False
+                }, session_id)
+                deadline = time.time() + 12
+                while time.time() < deadline:
+                    raw = ws.recv()
+                    if not raw:
+                        raise RuntimeError("browser websocket closed")
+                    try:
+                        event = json.loads(raw)
+                    except Exception:
+                        continue
+                    if event.get("id") == shot_id:
+                        data = ((event.get("result") or {}).get("data"))
+                        if data:
+                            try:
+                                frame = base64.b64decode(data)
+                                with _lock:
+                                    _latest_frame = frame
+                            except Exception:
+                                pass
+                        break
+                time.sleep(0.65)
         except Exception as exc:
             _set(connected=False, viewer_ready=False, last_error=f"{type(exc).__name__}: {str(exc)[:180]}")
             _ws = None
