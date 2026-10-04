@@ -367,19 +367,16 @@ def start_tinyfish_live_browser(url="https://www.google.com", goal="Open the pag
     return {"ok": False, "error": state.get("error") or "live_url_timeout"}
 
 def maybe_handle_local_command(message):
-    text = " ".join(
-        str(message)
-        .replace("\\u200e", " ")
-        .replace("\\u200f", " ")
-        .replace("\\u202a", " ")
-        .replace("\\u202b", " ")
-        .replace("\\u202c", " ")
-        .split()
-    )
+    # Normalize real bidi/control characters that can arrive from iPad/Safari/voice input.
+    text = re.sub(r"[\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff]", "", str(message))
+    text = " ".join(text.split())
 
-    # Route any natural Hebrew request for a shared browser directly to the real browser.
-    # Do not let the language model answer this command with a generic "no browser" reply.
-    wants_shared_browser = ("דפדפן" in text and "משותף" in text)
+    # Route shared-browser requests directly to the real browser.
+    # Use stems too, so harmless punctuation/inflections do not fall through to the model.
+    wants_shared_browser = (
+        ("דפדפן" in text and "משותף" in text)
+        or ("דפד" in text and "משות" in text)
+    )
     wants_open = any(word in text for word in ("פתח", "תפתח", "תפתחי", "לפתוח"))
     if wants_shared_browser and wants_open:
         result = start_tinyfish_live_browser()
