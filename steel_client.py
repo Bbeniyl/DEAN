@@ -2,7 +2,7 @@ import os
 import requests
 
 # Compatibility module: DEAN historically imported this file as steel_client.
-# The active provider is now Browserless.
+# The active provider is Browserless.
 BASE_URL = os.getenv("BROWSERLESS_BASE_URL", "https://production-sfo.browserless.io").rstrip("/")
 
 
@@ -40,28 +40,29 @@ def _bql(query, timeout=30):
 
 
 def create_session():
-    # Free Browserless plans cap reconnect timeout at 10 seconds.
+    # Browserless liveURL is the end-user viewer. Unlike devtoolsFrontendUrl,
+    # it is intended to open directly in Safari/mobile and can be interactive.
     query = """mutation StartDeanSession {
       goto(url: "https://www.google.com", waitUntil: domContentLoaded) { status }
-      reconnect(timeout: 10000) {
-        browserQLEndpoint
-        browserWSEndpoint
-        devtoolsFrontendUrl
-        webSocketDebuggerUrl
+      liveURL(interactable: true, showBrowserInterface: true, resizable: true, quality: 70) {
+        liveURL
+        timeout
       }
     }"""
     r, data = _bql(query, timeout=30)
     if r is None or not isinstance(data, dict) or data.get("ok") is False:
         return data if isinstance(data, dict) else {"ok": False, "error": "browserless_unknown_error"}
-    rec = ((data.get("data") or {}).get("reconnect") or {})
-    debug_url = rec.get("devtoolsFrontendUrl")
+    live = ((data.get("data") or {}).get("liveURL") or {})
+    live_url = live.get("liveURL")
+    if not live_url:
+        return {"ok": False, "error": "browserless_live_url_missing", "response": data}
     return {
         "ok": True,
-        "session_id": (rec.get("browserQLEndpoint") or "").rstrip("/").split("/")[-1] or None,
-        "debug_url": debug_url,
-        "browserql_endpoint": rec.get("browserQLEndpoint"),
-        "browser_ws_endpoint": rec.get("browserWSEndpoint"),
-        "viewer_ready": bool(debug_url),
+        "session_id": live.get("liveURLId"),
+        "debug_url": live_url,
+        "live_url": live_url,
+        "viewer_ready": True,
+        "viewer_timeout_ms": live.get("timeout"),
         "provider": "browserless",
     }
 
@@ -70,7 +71,6 @@ def validate_key():
     key = api_key()
     if not key:
         return {"configured": False, "authenticated": False, "status_code": None, "provider": "browserless"}
-    # A minimal BQL query verifies the token without logging or returning it.
     query = """query DeanBrowserlessHealth { version }"""
     r, data = _bql(query, timeout=15)
     if r is None:
