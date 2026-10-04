@@ -16,7 +16,7 @@ from flask import (
 )
 from openai import OpenAI
 from steel_client import configured as steel_configured, create_session as steel_create_session, validate_key as steel_validate_key, active_session_status
-from persistent_browser import ensure_started as ensure_persistent_browser, status as persistent_browser_status, latest_frame as persistent_browser_frame, navigate as persistent_browser_navigate, click as persistent_browser_click, type_text as persistent_browser_type, press_key as persistent_browser_key, start_keepalive as start_browser_keepalive, wait_until_ready as browser_wait_until_ready, wait_until_ready as browser_wait_until_ready
+from persistent_browser import ensure_started as ensure_persistent_browser, status as persistent_browser_status, latest_frame as persistent_browser_frame, navigate as persistent_browser_navigate, click as persistent_browser_click, type_text as persistent_browser_type, press_key as persistent_browser_key, start_keepalive as start_browser_keepalive, wait_until_ready as browser_wait_until_ready
 
 app = Flask(__name__)
 # browser reconnect build marker
@@ -53,6 +53,9 @@ app.config.update(
 )
 
 client = OpenAI(api_key=OPENAI_API_KEY)
+_last_search_results = []
+_last_search_query = ""
+_last_search_lock = threading.Lock()
 
 # Start DEAN's long-lived self-hosted Chromium connection in the background.
 ensure_persistent_browser()
@@ -450,9 +453,13 @@ def backend_web_search_results(query, limit=8):
 
 def open_backend_search_results(query):
     """Render search results inside the shared Chromium session without Google/Bing/DDG."""
+    global _last_search_results, _last_search_query
     results = backend_web_search_results(query, limit=8)
     if not results:
         return False, 0
+    with _last_search_lock:
+        _last_search_results = list(results)
+        _last_search_query = str(query or "")
     cards = []
     for i, item in enumerate(results, 1):
         u = html.escape(item["url"], quote=True)
@@ -474,6 +481,23 @@ def open_backend_search_results(query):
     {''.join(cards)}</body></html>"""
     data_url = "data:text/html;charset=utf-8," + quote(page, safe="")
     return bool(persistent_browser_navigate(data_url)), len(results)
+
+
+def open_saved_search_result(number=1):
+    """Open a result from the most recent DEAN Search without touching a search-engine page."""
+    try:
+        n = max(1, int(number))
+    except Exception:
+        n = 1
+    with _last_search_lock:
+        results = list(_last_search_results)
+    if n > len(results):
+        return False, None
+    item = results[n - 1]
+    url = str(item.get("url") or "").strip()
+    if not url:
+        return False, None
+    return bool(persistent_browser_navigate(url)), item
 
 
 def extract_search_query(text):
@@ -506,6 +530,36 @@ def maybe_handle_local_command(message):
     # Normalize real bidi/control characters that can arrive from iPad/Safari/voice input.
     text = re.sub(r"[\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff]", "", str(message))
     text = " ".join(text.split())
+
+    # Open a result from the last DEAN Search directly. This must never fall through
+    # to the language model, because the browser state is already known here.
+    result_open_match = re.search(
+        r"(?:פתח|תפתח|כנס|תיכנס)(?:\s+לי)?(?:\s+את)?\s+(?:ה)?תוצאה(?:\s+(?:מספר\s*)?(\d+)|\s+(הראשונה|ראשונה|הראשון|ראשון))?",
+        text,
+        re.I,
+    )
+    if result_open_match:
+        raw_num = result_open_match.group(1)
+        number = int(raw_num) if raw_num and raw_num.isdigit() else 1
+        ok, item = open_saved_search_result(number)
+        if ok:
+            title = str((item or {}).get("title") or f"תוצאה {number}")
+            return f"בוצע. פתחתי במסך המשותף את תוצאה {number}: {title}"
+        return "אין לי כרגע תוצאה שמורה לפתוח. תעשה קודם חיפוש."
+
+    # Image searches should execute even if Beniyl does not explicitly say "shared browser".
+    generic_image = re.search(
+        r"(?:תראה\s+לי|תביא\s+לי|חפש(?:\s+לי)?|תחפש(?:\s+לי)?)?\s*(?:תמונות|תמונות\s+של)\s+(.+)$",
+        text,
+        re.I,
+    )
+    if generic_image and ("תמונה" in text):
+        query = generic_image.group(1).strip(" .,!?:;")
+        if query:
+            ok, count = open_backend_search_results(query + " images photos")
+            if ok:
+                return f"בוצע. מצאתי {count} תוצאות תמונות ופתחתי אותן במסך המשותף: " + query
+            return "לא הצלחתי להביא תמונות כרגע. נסה שוב בעוד כמה שניות."
 
     # Route shared-browser requests directly to the real browser.
     # Use stems too, so harmless punctuation/inflections do not fall through to the model.
@@ -723,7 +777,11 @@ def dean_instructions(current_message=""):
 כלל ביצוע:
 - לפני פעולה חיצונית רגישה, צור בקשת אישור ברורה ואל תטען שהפעולה בוצעה לפני שיש כלי אמיתי ותוצאה מאומתת.
 - כשאין עדיין כלי שמסוגל לבצע פעולה, אמור במדויק שהכלי עדיין לא מחובר במקום להעמיד פנים שביצעת.
-- כלי browser_run שולט בדפדפן המשותף הקבוע של DEAN שרץ ב-Render. כשבניאל אומר "במסך המשותף", "בגוגל", "תראה לי תמונות", "תחפש", "תמצא", או בקשה דומה, פרש אותה כפקודת דפדפן ובצע אותה בפועל. אם הוא מבקש תמונות, פתח חיפוש תמונות במסך המשותף. Google עלול לחסום שרתי ענן ב-CAPTCHA, לכן השתמש אוטומטית במנוע חיפוש חלופי שאינו Microsoft, ובמידת הצורך עבור לאתר המקור עצמו. אל תגיד שאין כלי גלישה לפני שניסית וקיבלת שגיאה אמיתית.\n- כאשר כלי ביצוע מחובר, פעל כמתזמר: בחר את הכלי המתאים, בצע, בדוק תוצאה, תקן אם נכשל והמשך עד השלמת המטרה.
+- כלי browser_run שולט בדפדפן המשותף הקבוע של DEAN שרץ ב-Render. כשבניאל אומר "במסך המשותף", "בגוגל", "תראה לי תמונות", "תחפש", "תמצא", "פתח תוצאה" או בקשה דומה, זו פקודת ביצוע בדפדפן. בצע אותה בפועל.
+- לחיפוש רגיל או תמונות אל תפתח Google/Bing/DuckDuckGo בדפדפן. החיפוש נעשה מאחורי הקלעים דרך web_search והתוצאות מוצגות בדף DEAN Search, כדי לא להיתקע ב-CAPTCHA.
+- אם קיימות תוצאות חיפוש שמורות ובניאל אומר "פתח את התוצאה הראשונה/מספר 2", פתח את התוצאה עצמה במסך המשותף.
+- אל תגיד שאין כלי גלישה לפני שניסית את כלי הדפדפן וקיבלת שגיאה אמיתית.
+- כאשר כלי ביצוע מחובר, פעל כמתזמר: בחר את הכלי המתאים, בצע, בדוק תוצאה, תקן אם נכשל והמשך עד השלמת המטרה.
 """.strip()
 
 def run_browser_agent(url, goal):
@@ -768,7 +826,7 @@ def needs_browser(message):
     action_words = (
         "פתח אתר","כנס לאתר","תיכנס לאתר","תפתח אתר","לחץ על","תלחץ על",
         "מלא טופס","תמלא טופס","תתחבר ל","תיכנס ל","תפרסם","תעלה פוסט",
-        "תנווט","נווט ל","בדוק באתר","תבדוק באתר","מסך המשותף","דפדפן המשותף","תמונות של","חפש בגוגל","תחפש בגוגל","חפש לי","תחפש לי","google","גוגל","https://","http://"
+        "תנווט","נווט ל","בדוק באתר","תבדוק באתר","מסך המשותף","דפדפן המשותף","תמונות של","תמונות","חפש בגוגל","תחפש בגוגל","חפש לי","תחפש לי","פתח תוצאה","תפתח תוצאה","google","גוגל","https://","http://"
     )
     return any(x in text for x in action_words)
 
