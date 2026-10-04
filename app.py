@@ -16,7 +16,7 @@ from flask import (
 )
 from openai import OpenAI
 from steel_client import configured as steel_configured, create_session as steel_create_session, validate_key as steel_validate_key, active_session_status
-from persistent_browser import ensure_started as ensure_persistent_browser, status as persistent_browser_status, latest_frame as persistent_browser_frame, navigate as persistent_browser_navigate, click as persistent_browser_click, type_text as persistent_browser_type, press_key as persistent_browser_key, start_keepalive as start_browser_keepalive, wait_until_ready as browser_wait_until_ready
+from persistent_browser import ensure_started as ensure_persistent_browser, status as persistent_browser_status, latest_frame as persistent_browser_frame, navigate as persistent_browser_navigate, click as persistent_browser_click, scroll_by as persistent_browser_scroll, type_text as persistent_browser_type, press_key as persistent_browser_key, start_keepalive as start_browser_keepalive, wait_until_ready as browser_wait_until_ready
 
 app = Flask(__name__)
 # browser reconnect build marker
@@ -1335,7 +1335,7 @@ button{font-size:15px;padding:10px 14px;border:1px solid rgba(255,255,255,.10);b
 #typeText{flex:1}
 .small{font-size:12px;color:#8fa6bf;padding:4px 4px 8px}
 .stage{display:flex;justify-content:center;align-items:flex-start;background:#0b0f16;min-height:0;overflow:auto;flex:1;border:1px solid rgba(255,255,255,.08);border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,.38);overflow:hidden}
-#screen{width:100%;max-width:1024px;height:auto;display:block;touch-action:manipulation;background:#fff;border-radius:18px}
+#screen{width:100%;max-width:1024px;height:auto;display:block;touch-action:none;background:#fff;border-radius:18px;user-select:none;-webkit-user-select:none}
 .chatPane{position:fixed;right:18px;bottom:18px;width:290px;height:340px;z-index:10000;background:rgba(10,14,22,.94);backdrop-filter:blur(22px);display:none;flex-direction:column;min-width:0;border:1px solid rgba(100,220,255,.22);border-radius:22px;box-shadow:0 24px 70px rgba(0,0,0,.55),0 0 35px rgba(54,194,255,.10);overflow:hidden}
 .chatPane.open{display:flex}
 .chatHead{padding:10px 12px;border-bottom:1px solid #2a2d33;font-weight:700;display:flex;justify-content:space-between;align-items:center;cursor:move;touch-action:none}
@@ -1408,12 +1408,65 @@ async function pollStatus(){
 function refresh(){ img.src="/api/browser/frame?t="+Date.now(); }
 setInterval(refresh,700); setInterval(pollStatus,1200); refresh(); pollStatus();
 
-img.addEventListener("click",async e=>{
+let screenPointer=null;
+img.addEventListener("pointerdown",e=>{
+  const r=img.getBoundingClientRect();
+  screenPointer={
+    id:e.pointerId,
+    startX:e.clientX,
+    startY:e.clientY,
+    lastX:e.clientX,
+    lastY:e.clientY,
+    remoteX:(e.clientX-r.left)*(1024/r.width),
+    remoteY:(e.clientY-r.top)*(700/r.height),
+    moved:false
+  };
+  try{img.setPointerCapture(e.pointerId);}catch(_){}
+  e.preventDefault();
+});
+img.addEventListener("pointermove",e=>{
+  if(!screenPointer||screenPointer.id!==e.pointerId)return;
+  const dx=e.clientX-screenPointer.lastX;
+  const dy=e.clientY-screenPointer.lastY;
+  if(Math.hypot(e.clientX-screenPointer.startX,e.clientY-screenPointer.startY)>8){
+    screenPointer.moved=true;
+  }
+  screenPointer.lastX=e.clientX;
+  screenPointer.lastY=e.clientY;
+  e.preventDefault();
+});
+img.addEventListener("pointerup",async e=>{
+  if(!screenPointer||screenPointer.id!==e.pointerId)return;
+  const p=screenPointer;
+  screenPointer=null;
   const r=img.getBoundingClientRect();
   const x=(e.clientX-r.left)*(1024/r.width);
   const y=(e.clientY-r.top)*(700/r.height);
-  await fetch("/api/browser/click",{method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":csrf},body:JSON.stringify({x,y})});
+  const totalDx=e.clientX-p.startX;
+  const totalDy=e.clientY-p.startY;
+  if(p.moved){
+    // Drag the page naturally: finger up => page scrolls down.
+    await fetch("/api/browser/scroll",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","X-CSRF-Token":csrf},
+      body:JSON.stringify({
+        deltaX:-totalDx*(1024/r.width),
+        deltaY:-totalDy*(700/r.height),
+        x:p.remoteX,
+        y:p.remoteY
+      })
+    });
+    setTimeout(refresh,120);
+  }else{
+    await fetch("/api/browser/click",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","X-CSRF-Token":csrf},
+      body:JSON.stringify({x,y})
+    });
+  }
+  e.preventDefault();
 });
+img.addEventListener("pointercancel",()=>{screenPointer=null;});
 document.getElementById("go").onclick=async()=>{
   const url=document.getElementById("url").value.trim();
   await fetch("/api/browser/navigate",{method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":csrf},body:JSON.stringify({url})});
@@ -1550,6 +1603,21 @@ def api_browser_click():
     data=request.get_json(silent=True) or {}
     try:
         ok=persistent_browser_click(data.get("x"), data.get("y"))
+    except Exception:
+        ok=False
+    return jsonify(ok=bool(ok)), (200 if ok else 503)
+
+@app.post("/api/browser/scroll")
+@require_csrf
+def api_browser_scroll():
+    data=request.get_json(silent=True) or {}
+    try:
+        ok=persistent_browser_scroll(
+            data.get("deltaX",0),
+            data.get("deltaY",0),
+            data.get("x",512),
+            data.get("y",350),
+        )
     except Exception:
         ok=False
     return jsonify(ok=bool(ok)), (200 if ok else 503)
