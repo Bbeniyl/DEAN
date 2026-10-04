@@ -433,18 +433,18 @@ def maybe_handle_local_command(message):
     if shared_context and image_match2:
         query = image_match2.group(1).strip(" .,!?:;")
         if query:
-            ok = persistent_browser_navigate("https://www.google.com/search?tbm=isch&q=" + quote_plus(query))
+            ok = persistent_browser_navigate("https://www.bing.com/images/search?q=" + quote_plus(query))
             if ok:
-                return "בוצע. פתחתי במסך המשותף תמונות בגוגל: " + query
+                return "בוצע. פתחתי במסך המשותף חיפוש תמונות: " + query
             ensure_persistent_browser()
             return "הדפדפן המשותף מתחבר. נסה שוב בעוד כמה שניות."
 
     if shared_context and image_match:
         query = image_match.group(1).strip(" .,!?:;")
         if query:
-            ok = persistent_browser_navigate("https://www.google.com/search?tbm=isch&q=" + quote_plus(query))
+            ok = persistent_browser_navigate("https://www.bing.com/images/search?q=" + quote_plus(query))
             if ok:
-                return "בוצע. פתחתי במסך המשותף חיפוש תמונות בגוגל: " + query
+                return "בוצע. פתחתי במסך המשותף חיפוש תמונות: " + query
             ensure_persistent_browser()
             return "הדפדפן המשותף מתחבר. נסה שוב בעוד כמה שניות."
 
@@ -457,9 +457,9 @@ def maybe_handle_local_command(message):
         # Strip a leading Google token that speech-to-text sometimes leaves in the query.
         query = re.sub(r"^(?:ב[- ]?google|google|בגוגל|גוגל)\s+", "", query, flags=re.I)
         if query:
-            ok = persistent_browser_navigate("https://www.google.com/search?q=" + quote_plus(query))
+            ok = persistent_browser_navigate("https://www.bing.com/search?q=" + quote_plus(query))
             if ok:
-                return "בוצע. חיפשתי במסך המשותף בגוגל: " + query
+                return "בוצע. חיפשתי במסך המשותף: " + query
             ensure_persistent_browser()
             return "הדפדפן המשותף מתחבר. נסה שוב בעוד כמה שניות."
 
@@ -623,7 +623,7 @@ def dean_instructions(current_message=""):
 כלל ביצוע:
 - לפני פעולה חיצונית רגישה, צור בקשת אישור ברורה ואל תטען שהפעולה בוצעה לפני שיש כלי אמיתי ותוצאה מאומתת.
 - כשאין עדיין כלי שמסוגל לבצע פעולה, אמור במדויק שהכלי עדיין לא מחובר במקום להעמיד פנים שביצעת.
-- כלי browser_run שולט בדפדפן המשותף הקבוע של DEAN שרץ ב-Render. כשבניאל אומר "במסך המשותף", "בגוגל", "תראה לי תמונות", "תחפש", "תמצא", או בקשה דומה, פרש אותה כפקודת דפדפן ובצע אותה בפועל. אם הוא מבקש תמונות, פתח Google Images. אם הוא מבקש חיפוש רגיל, פתח תוצאות Google. אל תגיד שאין כלי גלישה לפני שניסית וקיבלת שגיאה אמיתית.\n- כאשר כלי ביצוע מחובר, פעל כמתזמר: בחר את הכלי המתאים, בצע, בדוק תוצאה, תקן אם נכשל והמשך עד השלמת המטרה.
+- כלי browser_run שולט בדפדפן המשותף הקבוע של DEAN שרץ ב-Render. כשבניאל אומר "במסך המשותף", "בגוגל", "תראה לי תמונות", "תחפש", "תמצא", או בקשה דומה, פרש אותה כפקודת דפדפן ובצע אותה בפועל. אם הוא מבקש תמונות, פתח מנוע תמונות זמין במסך המשותף. אם Google חוסם את שרת הענן ב-CAPTCHA, השתמש אוטומטית ב-Bing כדי להשלים את החיפוש בפועל ואל תטען שזה Google. אל תגיד שאין כלי גלישה לפני שניסית וקיבלת שגיאה אמיתית.\n- כאשר כלי ביצוע מחובר, פעל כמתזמר: בחר את הכלי המתאים, בצע, בדוק תוצאה, תקן אם נכשל והמשך עד השלמת המטרה.
 """.strip()
 
 def run_browser_agent(url, goal):
@@ -644,14 +644,14 @@ def run_browser_agent(url, goal):
         m = re.search(r"(?:תראה לי\s+)?(?:תמונות(?:\s+של)?|תביא לי תמונות של|images?\s+(?:of|for)?)\s+(.+)$", goal_text, re.I)
         if m:
             q = m.group(1).strip(" .,!?:;")
-            ok = persistent_browser_navigate("https://www.google.com/search?tbm=isch&q=" + quote_plus(q))
+            ok = persistent_browser_navigate("https://www.bing.com/images/search?q=" + quote_plus(q))
             return {"ok": bool(ok), "action": "google_images", "query": q}
 
         # Ordinary Google-search intent.
         m = re.search(r"(?:חפש|תחפש|search(?:\s+for)?)\s+(.+)$", goal_text, re.I)
         if m:
             q = m.group(1).strip(" .,!?:;")
-            ok = persistent_browser_navigate("https://www.google.com/search?q=" + quote_plus(q))
+            ok = persistent_browser_navigate("https://www.bing.com/search?q=" + quote_plus(q))
             return {"ok": bool(ok), "action": "google_search", "query": q}
 
         if url_text:
