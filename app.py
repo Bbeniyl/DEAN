@@ -15,7 +15,7 @@ from flask import (
 )
 from openai import OpenAI
 from steel_client import configured as steel_configured, create_session as steel_create_session, validate_key as steel_validate_key, active_session_status
-from persistent_browser import ensure_started as ensure_persistent_browser, status as persistent_browser_status, latest_frame as persistent_browser_frame, navigate as persistent_browser_navigate, click as persistent_browser_click, type_text as persistent_browser_type, press_key as persistent_browser_key
+from persistent_browser import ensure_started as ensure_persistent_browser, status as persistent_browser_status, latest_frame as persistent_browser_frame, navigate as persistent_browser_navigate, click as persistent_browser_click, type_text as persistent_browser_type, press_key as persistent_browser_key, start_keepalive as start_browser_keepalive
 
 app = Flask(__name__)
 
@@ -54,6 +54,7 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 
 # Start DEAN's long-lived self-hosted Chromium connection in the background.
 ensure_persistent_browser()
+start_browser_keepalive()
 
 # Safe browser-session diagnostic for deployment verification.
 def _browser_session_diag_later():
