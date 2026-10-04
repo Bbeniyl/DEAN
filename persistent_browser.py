@@ -225,7 +225,9 @@ def click(x, y):
         return True
     except Exception:
         _set(connected=False, viewer_ready=False)
-        return False\n\ndef type_text(text):
+        return False
+
+def type_text(text):
     if not _cdp_session_id and not wait_until_ready(20):
         return False
     try:
@@ -233,7 +235,9 @@ def click(x, y):
         return True
     except Exception:
         _set(connected=False, viewer_ready=False)
-        return False\n\ndef press_key(key):
+        return False
+
+def press_key(key):
     if not _cdp_session_id and not wait_until_ready(20):
         return False
     key = str(key)
@@ -243,7 +247,9 @@ def click(x, y):
         return True
     except Exception:
         _set(connected=False, viewer_ready=False)
-        return False\n\ndef _keep_browser_service_awake():
+        return False
+
+def _keep_browser_service_awake():
     """Keep the free Render browser service warm so its Chromium session does not hibernate."""
     import requests as _requests
     while True:
