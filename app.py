@@ -51,6 +51,23 @@ app.config.update(
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
+# Safe startup diagnostic: never logs the Steel key itself.
+try:
+    _steel_raw = os.getenv("STEEL_API_KEY", "")
+    _steel_norm = __import__("steel_client").api_key()
+    _steel_check = steel_validate_key()
+    print("STEEL_DIAG", {
+        "raw_present": bool(_steel_raw),
+        "raw_length": len(_steel_raw),
+        "normalized_length": len(_steel_norm),
+        "starts_with_ste": _steel_norm.startswith("ste-"),
+        "authenticated": _steel_check.get("authenticated", False),
+        "status_code": _steel_check.get("status_code"),
+        "error": str(_steel_check.get("error", ""))[:160] if _steel_check.get("error") else "",
+    }, flush=True)
+except Exception as _steel_exc:
+    print("STEEL_DIAG", {"diagnostic_error": type(_steel_exc).__name__}, flush=True)
+
 def utc_now():
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
