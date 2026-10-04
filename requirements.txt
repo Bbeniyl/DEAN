@@ -3,3 +3,4 @@ openai
 gunicorn
 psycopg[binary]
 requests
+websocket-client
