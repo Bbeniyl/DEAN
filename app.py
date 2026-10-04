@@ -55,6 +55,16 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 # Start DEAN's long-lived self-hosted Chromium connection in the background.
 ensure_persistent_browser()
 
+# Safe browser-session diagnostic for deployment verification.
+def _browser_session_diag_later():
+    time.sleep(12)
+    try:
+        st = active_session_status()
+        print("BROWSER_SESSION_DIAG", st, flush=True)
+    except Exception as exc:
+        print("BROWSER_SESSION_DIAG", {"ok": False, "error": type(exc).__name__}, flush=True)
+threading.Thread(target=_browser_session_diag_later, daemon=True, name="browser-session-diag").start()
+
 # Safe startup diagnostic: never logs the Steel key itself.
 try:
     _steel_raw = os.getenv("STEEL_API_KEY", "")
