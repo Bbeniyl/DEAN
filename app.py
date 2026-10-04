@@ -461,7 +461,7 @@ def maybe_handle_local_command(message):
     if shared_context and image_match2:
         query = image_match2.group(1).strip(" .,!?:;")
         if query:
-            ok = persistent_browser_navigate("https://duckduckgo.com/?kl=il-he&iax=images&ia=images&q=" + quote_plus(query))
+            ok = persistent_browser_navigate("https://www.google.com/search?tbm=isch&hl=he&gl=il&q=" + quote_plus(query))
             if ok:
                 return "בוצע. פתחתי במסך המשותף חיפוש תמונות: " + query
             ensure_persistent_browser()
@@ -481,9 +481,8 @@ def maybe_handle_local_command(message):
     if search_intent:
         query = extract_search_query(text)
         if query:
-            # Google blocks Render datacenter IPs with reCAPTCHA, so use Bing as the
-            # working search engine but force Hebrew/Israel UI and keep only the user's terms.
-            url = "https://duckduckgo.com/?kl=il-he&q=" + quote_plus(query)
+            # Search directly in Google; DuckDuckGo was timing out from the Render browser.
+            url = "https://www.google.com/search?hl=he&gl=il&q=" + quote_plus(query)
             ok = persistent_browser_navigate(url)
             if ok:
                 return "בוצע. חיפשתי במסך המשותף: " + query
