@@ -448,9 +448,14 @@ def maybe_handle_local_command(message):
             ensure_persistent_browser()
             return "הדפדפן המשותף מתחבר. נסה שוב בעוד כמה שניות."
 
-    search_match = re.search(r"(?:חפש|תחפש|תעשה לי חיפוש|תמצא|תראה לי)(?:\s+בגוגל)?\s+(.+)$", text)
-    if shared_context and search_match:
+    search_match = re.search(r"(?:חפש|תחפש|חפש לי|תחפש לי|תעשה לי חיפוש|תמצא|תראה לי)(?:\s+(?:בגוגל|ב-google|בgoogle|google|גוגל))?\s+(.+)$", text, re.I)
+    # A direct Google/search command should always use DEAN's shared browser,
+    # even when Beniyl doesn't explicitly say "shared screen".
+    google_context = shared_context or ("גוגל" in text.lower()) or ("google" in text.lower())
+    if search_match and (google_context or text.startswith(("חפש", "תחפש", "חפש לי", "תחפש לי", "תמצא"))):
         query = search_match.group(1).strip(" .,!?:;")
+        # Strip a leading Google token that speech-to-text sometimes leaves in the query.
+        query = re.sub(r"^(?:ב[- ]?google|google|בגוגל|גוגל)\s+", "", query, flags=re.I)
         if query:
             ok = persistent_browser_navigate("https://www.google.com/search?q=" + quote_plus(query))
             if ok:
@@ -663,7 +668,7 @@ def needs_browser(message):
     action_words = (
         "פתח אתר","כנס לאתר","תיכנס לאתר","תפתח אתר","לחץ על","תלחץ על",
         "מלא טופס","תמלא טופס","תתחבר ל","תיכנס ל","תפרסם","תעלה פוסט",
-        "תנווט","נווט ל","בדוק באתר","תבדוק באתר","מסך המשותף","דפדפן המשותף","תמונות של","חפש בגוגל","תחפש בגוגל","https://","http://"
+        "תנווט","נווט ל","בדוק באתר","תבדוק באתר","מסך המשותף","דפדפן המשותף","תמונות של","חפש בגוגל","תחפש בגוגל","חפש לי","תחפש לי","google","גוגל","https://","http://"
     )
     return any(x in text for x in action_words)
 
