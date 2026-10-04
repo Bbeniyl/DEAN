@@ -227,6 +227,23 @@ def click(x, y):
         _set(connected=False, viewer_ready=False)
         return False
 
+def scroll_by(delta_x=0, delta_y=0, x=512, y=350):
+    if not _cdp_session_id and not wait_until_ready(20):
+        return False
+    try:
+        _send("Input.dispatchMouseEvent", {
+            "type": "mouseWheel",
+            "x": float(x),
+            "y": float(y),
+            "deltaX": float(delta_x),
+            "deltaY": float(delta_y),
+        }, _cdp_session_id)
+        return True
+    except Exception:
+        _set(connected=False, viewer_ready=False)
+        return False
+
+
 def type_text(text):
     if not _cdp_session_id and not wait_until_ready(20):
         return False
