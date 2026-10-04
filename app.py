@@ -367,13 +367,25 @@ def start_tinyfish_live_browser(url="https://www.google.com", goal="Open the pag
     return {"ok": False, "error": state.get("error") or "live_url_timeout"}
 
 def maybe_handle_local_command(message):
-    text = message.strip()
+    text = " ".join(
+        str(message)
+        .replace("\\u200e", " ")
+        .replace("\\u200f", " ")
+        .replace("\\u202a", " ")
+        .replace("\\u202b", " ")
+        .replace("\\u202c", " ")
+        .split()
+    )
 
-    if text in {"פתח לי דפדפן משותף","פתח דפדפן משותף","תפתח לי דפדפן משותף"}:
+    # Route any natural Hebrew request for a shared browser directly to the real browser.
+    # Do not let the language model answer this command with a generic "no browser" reply.
+    wants_shared_browser = ("דפדפן" in text and "משותף" in text)
+    wants_open = any(word in text for word in ("פתח", "תפתח", "תפתחי", "לפתוח"))
+    if wants_shared_browser and wants_open:
         result = start_tinyfish_live_browser()
         if not result.get("ok"):
             return "לא הצלחתי לפתוח דפדפן משותף דרך TinyFish: " + str(result.get("error") or result)
-        return "פתחתי דפדפן משותף דרך TinyFish. הנה הקישור החי:\\n" + result["live_url"]
+        return "פתחתי דפדפן משותף. הנה הקישור החי:\\n" + result["live_url"]
 
     prefixes = ["תזכור ", "תזכרי ", "תשמור ", "תשמרי ", "שמור ", "שמרי "]
     for prefix in prefixes:
