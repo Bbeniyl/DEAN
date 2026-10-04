@@ -1165,7 +1165,16 @@ def api_steel_status():
     raw = os.getenv("STEEL_API_KEY", "")
     normalized = __import__("steel_client").api_key()
     check = steel_validate_key()
-    return jsonify(\n        configured=steel_configured(),\n        raw_present=bool(raw),\n        raw_length=len(raw),\n        normalized_length=len(normalized),\n        starts_with_ste=normalized.startswith("ste-"),\n        authenticated=check.get("authenticated", False),\n        steel_status_code=check.get("status_code"),\n        steel_error=str(check.get("error", ""))[:200] if check.get("error") else "",\n    )
+    return jsonify(
+        configured=steel_configured(),
+        raw_present=bool(raw),
+        raw_length=len(raw),
+        normalized_length=len(normalized),
+        starts_with_ste=normalized.startswith("ste-"),
+        authenticated=check.get("authenticated", False),
+        steel_status_code=check.get("status_code"),
+        steel_error=str(check.get("error", ""))[:200] if check.get("error") else "",
+    )
 
 @app.post("/api/steel/session")
 @require_csrf
