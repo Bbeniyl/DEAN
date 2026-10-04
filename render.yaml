@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: dean-browser
+    runtime: docker
+    plan: free
+    dockerfilePath: ./browserless-render/Dockerfile
+    autoDeploy: true
+    envVars:
+      - key: TOKEN
+        generateValue: true
+      - key: TIMEOUT
+        value: "-1"
+      - key: MAX_RECONNECT_TIME
+        value: "-1"
+      - key: CONCURRENT
+        value: "1"
+      - key: QUEUED
+        value: "2"
