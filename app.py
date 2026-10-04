@@ -1163,40 +1163,83 @@ SHARED_BROWSER_HTML = r"""
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>DEAN Browser</title>
 <style>
-body{margin:0;background:#111;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-.bar{display:flex;gap:8px;padding:10px;background:#1c1c1e;position:sticky;top:0;z-index:3}
-input{flex:1;font-size:16px;padding:10px 12px;border-radius:10px;border:0}
+*{box-sizing:border-box}
+body{margin:0;background:#111;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow:hidden}
+.topbar{display:flex;gap:8px;padding:10px;background:#1c1c1e;align-items:center}
+input{font-size:16px;padding:10px 12px;border-radius:10px;border:0}
+#url{flex:1;direction:ltr;text-align:left}
 button{font-size:16px;padding:10px 14px;border:0;border-radius:10px}
-.stage{display:flex;justify-content:center;align-items:flex-start;background:#000;min-height:calc(100vh - 64px)}
-#screen{width:100%;max-width:1024px;height:auto;display:block;touch-action:manipulation;background:#fff}
+.main{display:grid;grid-template-columns:minmax(0,1fr) 330px;height:calc(100vh - 62px)}
+.browserPane{min-width:0;display:flex;flex-direction:column;background:#000}
 .typebar{display:flex;gap:8px;padding:8px;background:#1c1c1e}
 #typeText{flex:1}
 .small{font-size:13px;opacity:.75;padding:4px 10px}
+.stage{display:flex;justify-content:center;align-items:flex-start;background:#000;min-height:0;overflow:auto;flex:1}
+#screen{width:100%;max-width:1024px;height:auto;display:block;touch-action:manipulation;background:#fff}
+.chatPane{border-right:1px solid #333;background:#0f1115;display:flex;flex-direction:column;min-width:0}
+.chatHead{padding:12px 14px;border-bottom:1px solid #2a2d33;font-weight:700;display:flex;justify-content:space-between;align-items:center}
+.chatMsgs{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
+.msg{padding:10px 12px;border-radius:14px;white-space:pre-wrap;line-height:1.35}
+.msg.user{background:#234c7a;align-self:flex-start}
+.msg.assistant{background:#24272e;align-self:flex-end}
+.chatForm{display:flex;gap:8px;padding:10px;border-top:1px solid #2a2d33}
+#chatInput{flex:1;min-width:0}
+#chatToggle{display:none}
+@media(max-width:900px){
+  .main{grid-template-columns:1fr}
+  .chatPane{position:fixed;right:0;top:62px;bottom:0;width:min(360px,88vw);z-index:20;transform:translateX(100%);transition:.2s;border-right:0;border-left:1px solid #333}
+  .chatPane.open{transform:translateX(0)}
+  #chatToggle{display:inline-block}
+}
 </style>
 </head>
 <body>
-<div class="bar">
+<div class="topbar">
 <input id="url" value="https://www.bing.com/?setlang=he-IL&cc=il" autocomplete="off" autocapitalize="none">
 <button id="go">פתח</button>
 <button id="reload">רענן</button>
+<button id="chatToggle">דבר עם דין</button>
 </div>
-<div class="typebar">
-<input id="typeText" placeholder="כתוב בדפדפן...">
-<button id="typeBtn">הקלד</button>
-<button id="enterBtn">Enter</button>
+
+<div class="main">
+  <div class="browserPane">
+    <div class="typebar">
+      <input id="typeText" placeholder="כתוב בדפדפן...">
+      <button id="typeBtn">הקלד</button>
+      <button id="enterBtn">Enter</button>
+    </div>
+    <div class="small" id="status">DEAN Browser · מתחבר...</div>
+    <div class="stage"><img id="screen" alt="הדפדפן המשותף"></div>
+  </div>
+
+  <aside class="chatPane" id="chatPane">
+    <div class="chatHead">
+      <span>DEAN</span>
+      <button id="closeChat">×</button>
+    </div>
+    <div class="chatMsgs" id="chatMsgs"></div>
+    <form class="chatForm" id="chatForm">
+      <input id="chatInput" placeholder="דבר עם דין..." autocomplete="off">
+      <button>שלח</button>
+    </form>
+  </aside>
 </div>
-<div class="small" id="status">DEAN Browser · מחובר</div>
-<div class="stage"><img id="screen" alt="הדפדפן המשותף"></div>
+
 <script>
 const csrf={{ csrf|tojson }};
 const img=document.getElementById("screen");
 const status=document.getElementById("status");
+const pane=document.getElementById("chatPane");
+const msgs=document.getElementById("chatMsgs");
+
 async function pollStatus(){
   try{
     const r=await fetch("/api/browser/status",{credentials:"same-origin"});
     const d=await r.json();
-    if(d.viewer_ready){status.textContent="DEAN Browser · מחובר";}else if(d.connected){status.textContent="הדפדפן מחובר, מחכה לתמונה...";}else{status.textContent="הדפדפן מתחבר...";}
-  }catch(e){}
+    if(d.viewer_ready){status.textContent="DEAN Browser · מחובר";}
+    else if(d.connected){status.textContent="הדפדפן מחובר, מחכה לתמונה...";}
+    else{status.textContent="הדפדפן מתחבר...";}
+  }catch(e){ status.textContent="הדפדפן מנסה להתחבר..."; }
 }
 function refresh(){ img.src="/api/browser/frame?t="+Date.now(); }
 setInterval(refresh,700); setInterval(pollStatus,1200); refresh(); pollStatus();
@@ -1219,8 +1262,39 @@ document.getElementById("typeBtn").onclick=async()=>{
 document.getElementById("enterBtn").onclick=async()=>{
   await fetch("/api/browser/key",{method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":csrf},body:JSON.stringify({key:"Enter"})});
 };
-img.onerror=()=>{status.textContent="אין תמונה חיה כרגע — מנסה להתחבר...";};
+img.onerror=()=>{status.textContent="הדפדפן מנסה להתחבר...";};
 img.onload=()=>{status.textContent="DEAN Browser · מחובר";};
+
+document.getElementById("chatToggle").onclick=()=>pane.classList.add("open");
+document.getElementById("closeChat").onclick=()=>pane.classList.remove("open");
+
+function addMsg(role,text){
+  const d=document.createElement("div");
+  d.className="msg "+role;
+  d.textContent=text;
+  msgs.appendChild(d);
+  msgs.scrollTop=msgs.scrollHeight;
+}
+document.getElementById("chatForm").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const input=document.getElementById("chatInput");
+  const text=input.value.trim();
+  if(!text)return;
+  addMsg("user",text);
+  input.value="";
+  try{
+    const r=await fetch("/api/chat",{
+      method:"POST",
+      credentials:"same-origin",
+      headers:{"Content-Type":"application/json","X-CSRF-Token":csrf},
+      body:JSON.stringify({message:text})
+    });
+    const data=await r.json();
+    addMsg("assistant",data.answer||data.error||"לא התקבלה תשובה");
+  }catch(e){
+    addMsg("assistant","שגיאה בחיבור לדין");
+  }
+});
 </script>
 </body>
 </html>
