@@ -53,6 +53,49 @@ def create_session():
     # Do not use BrowserQL here: the open-source self-hosted container does not
     # expose the hosted /chromium/bql endpoint.
     if _is_self_hosted():
+        # Return the DevTools URL for DEAN's already-running persistent page,
+        # not the generic Browserless debugger landing page.
+        try:
+            r = requests.get(
+                f"{BASE_URL}/sessions",
+                params={"token": key},
+                timeout=15,
+            )
+            sessions = r.json() if r.ok and r.content else []
+        except Exception:
+            sessions = []
+
+        pages = [
+            s for s in sessions
+            if isinstance(s, dict)
+            and s.get("type") == "page"
+            and s.get("devtoolsFrontendUrl")
+        ]
+        # Prefer the Google tab created by persistent_browser.py.
+        page = next(
+            (s for s in pages if "google." in str(s.get("url") or "").lower()),
+            pages[0] if pages else None,
+        )
+        if page:
+            path = str(page.get("devtoolsFrontendUrl") or "")
+            if path.startswith("http://") or path.startswith("https://"):
+                live_url = path
+            else:
+                live_url = BASE_URL + (path if path.startswith("/") else "/" + path)
+            sep = "&" if "?" in live_url else "?"
+            if "token=" not in live_url:
+                live_url += sep + "token=" + quote(key, safe="")
+            return {
+                "ok": True,
+                "session_id": page.get("browserId") or page.get("id"),
+                "debug_url": live_url,
+                "live_url": live_url,
+                "viewer_ready": True,
+                "viewer_timeout_ms": None,
+                "provider": "browserless-self-hosted",
+            }
+
+        # Fallback only if the active session list is temporarily unavailable.
         live_url = f"{BASE_URL}/debugger/?token={quote(key, safe='')}"
         return {
             "ok": True,
