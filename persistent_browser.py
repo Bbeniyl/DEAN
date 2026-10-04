@@ -1,3 +1,4 @@
+import base64
 import json
 import os
 import threading
@@ -10,8 +11,19 @@ BASE_URL = os.getenv("BROWSERLESS_BASE_URL", "").strip().rstrip("/")
 TOKEN = (os.getenv("BROWSERLESS_API_KEY", "") or "").strip().strip('"').strip("'").strip("`")
 
 _lock = threading.Lock()
+_send_lock = threading.Lock()
 _thread = None
-_state = {"connected": False, "started": False, "last_error": "", "target_id": None}
+_ws = None
+_cdp_session_id = None
+_next_id = 10
+_latest_frame = None
+_state = {
+    "connected": False,
+    "started": False,
+    "last_error": "",
+    "target_id": None,
+    "viewer_ready": False,
+}
 
 
 def _is_self_hosted():
@@ -35,27 +47,75 @@ def _set(**kwargs):
         _state.update(kwargs)
 
 
+def _new_id():
+    global _next_id
+    with _lock:
+        _next_id += 1
+        return _next_id
+
+
+def _send(method, params=None, session_id=None):
+    global _ws
+    ws = _ws
+    if not ws:
+        raise RuntimeError("browser_not_connected")
+    msg = {"id": _new_id(), "method": method, "params": params or {}}
+    if session_id:
+        msg["sessionId"] = session_id
+    with _send_lock:
+        ws.send(json.dumps(msg))
+    return msg["id"]
+
+
+def _wait_for_response(ws, wanted_id, timeout=20):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        raw = ws.recv()
+        if not raw:
+            raise RuntimeError("browser websocket closed")
+        event = json.loads(raw)
+        if event.get("id") == wanted_id:
+            return event
+    raise TimeoutError("cdp response timeout")
+
+
 def _runner():
+    global _ws, _cdp_session_id, _latest_frame
     while True:
         ws = None
         try:
-            _set(started=True, connected=False, last_error="")
-            ws = websocket.create_connection(
-                _ws_url(),
-                timeout=20,
-                origin=BASE_URL,
-            )
+            _set(started=True, connected=False, viewer_ready=False, last_error="")
+            ws = websocket.create_connection(_ws_url(), timeout=30, origin=BASE_URL)
+            ws.settimeout(None)
+            _ws = ws
             _set(connected=True, last_error="")
 
-            # Create DEAN's long-lived working tab and open Google.
-            msg_id = 1
-            ws.send(json.dumps({
-                "id": msg_id,
-                "method": "Target.createTarget",
-                "params": {"url": "https://www.google.com"}
-            }))
+            create_id = _send("Target.createTarget", {"url": "https://www.google.com"})
+            created = _wait_for_response(ws, create_id)
+            target_id = ((created.get("result") or {}).get("targetId"))
+            if not target_id:
+                raise RuntimeError("target_not_created")
+            _set(target_id=target_id)
 
-            # Wait for our createTarget response, while keeping the browser session attached.
+            attach_id = _send("Target.attachToTarget", {"targetId": target_id, "flatten": True})
+            attached = _wait_for_response(ws, attach_id)
+            session_id = ((attached.get("result") or {}).get("sessionId"))
+            if not session_id:
+                raise RuntimeError("target_not_attached")
+            _cdp_session_id = session_id
+
+            # Fixed viewport makes taps in the iPad viewer line up with the remote page.
+            _send("Emulation.setDeviceMetricsOverride", {
+                "width": 1024, "height": 700, "deviceScaleFactor": 1, "mobile": False
+            }, session_id)
+            _send("Page.enable", {}, session_id)
+            _send("Page.startScreencast", {
+                "format": "jpeg", "quality": 65,
+                "maxWidth": 1024, "maxHeight": 700,
+                "everyNthFrame": 1
+            }, session_id)
+            _set(viewer_ready=True)
+
             while True:
                 raw = ws.recv()
                 if not raw:
@@ -64,19 +124,26 @@ def _runner():
                     event = json.loads(raw)
                 except Exception:
                     continue
-                if event.get("id") == msg_id:
-                    target_id = ((event.get("result") or {}).get("targetId"))
-                    _set(target_id=target_id)
-                    break
-
-            # Keep the CDP socket alive indefinitely. Browserless TIMEOUT=-1 means
-            # the browser remains alive as long as this socket stays connected.
-            while True:
-                raw = ws.recv()
-                if raw is None:
-                    raise RuntimeError("browser websocket closed")
+                if event.get("method") == "Page.screencastFrame" and event.get("sessionId") == session_id:
+                    params = event.get("params") or {}
+                    data = params.get("data")
+                    if data:
+                        try:
+                            frame = base64.b64decode(data)
+                            with _lock:
+                                _latest_frame = frame
+                        except Exception:
+                            pass
+                    sid = params.get("sessionId")
+                    if sid is not None:
+                        try:
+                            _send("Page.screencastFrameAck", {"sessionId": sid}, session_id)
+                        except Exception:
+                            pass
         except Exception as exc:
-            _set(connected=False, last_error=f"{type(exc).__name__}: {str(exc)[:180]}")
+            _set(connected=False, viewer_ready=False, last_error=f"{type(exc).__name__}: {str(exc)[:180]}")
+            _ws = None
+            _cdp_session_id = None
             try:
                 if ws:
                     ws.close()
@@ -95,3 +162,50 @@ def ensure_started():
         _thread = threading.Thread(target=_runner, daemon=True, name="dean-persistent-browser")
         _thread.start()
         return True
+
+
+def latest_frame():
+    with _lock:
+        return _latest_frame
+
+
+def navigate(url):
+    if not url:
+        return False
+    value = str(url).strip()
+    if not value.startswith(("http://", "https://")):
+        value = "https://" + value
+    sid = _cdp_session_id
+    if not sid:
+        return False
+    _send("Page.navigate", {"url": value}, sid)
+    return True
+
+
+def click(x, y):
+    sid = _cdp_session_id
+    if not sid:
+        return False
+    x = float(x)
+    y = float(y)
+    _send("Input.dispatchMouseEvent", {"type": "mousePressed", "x": x, "y": y, "button": "left", "clickCount": 1}, sid)
+    _send("Input.dispatchMouseEvent", {"type": "mouseReleased", "x": x, "y": y, "button": "left", "clickCount": 1}, sid)
+    return True
+
+
+def type_text(text):
+    sid = _cdp_session_id
+    if not sid:
+        return False
+    _send("Input.insertText", {"text": str(text)}, sid)
+    return True
+
+
+def press_key(key):
+    sid = _cdp_session_id
+    if not sid:
+        return False
+    key = str(key)
+    _send("Input.dispatchKeyEvent", {"type": "keyDown", "key": key}, sid)
+    _send("Input.dispatchKeyEvent", {"type": "keyUp", "key": key}, sid)
+    return True
