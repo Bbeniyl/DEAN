@@ -1,4 +1,5 @@
 import os
+import html
 import sqlite3
 import secrets
 import time
@@ -7,7 +8,7 @@ import requests
 import re
 from datetime import datetime, timezone
 from functools import wraps
-from urllib.parse import urlencode, quote_plus
+from urllib.parse import urlencode, quote_plus, quote
 
 from flask import (
     Flask, request, session, redirect, url_for,
@@ -399,6 +400,82 @@ def start_tinyfish_live_browser(url="https://www.google.com", goal="Open the pag
         return {"ok": True, "live_url": live}
     return {"ok": False, "error": state.get("error") or "live_url_timeout"}
 
+def backend_web_search_results(query, limit=8):
+    """Search via OpenAI web_search, not a public search page, so CAPTCHA is avoided."""
+    q = " ".join(str(query or "").split()).strip()
+    if not q:
+        return []
+    try:
+        r = client.responses.create(
+            model=MODEL,
+            input=(
+                "Search the public web for this query and return useful, diverse results. "
+                "Prefer official and directly relevant pages. Query: " + q
+            ),
+            tools=[{"type": "web_search"}],
+            reasoning={"effort": "low"},
+            max_output_tokens=450,
+        )
+        data = r.model_dump() if hasattr(r, "model_dump") else {}
+        found = []
+
+        def walk(x):
+            if isinstance(x, dict):
+                if x.get("type") == "url_citation" and x.get("url"):
+                    found.append({
+                        "url": str(x.get("url")),
+                        "title": str(x.get("title") or x.get("url")),
+                    })
+                for v in x.values():
+                    walk(v)
+            elif isinstance(x, list):
+                for v in x:
+                    walk(v)
+
+        walk(data)
+        out, seen = [], set()
+        for item in found:
+            u = item["url"].strip()
+            if not u.startswith(("http://", "https://")) or u in seen:
+                continue
+            seen.add(u)
+            out.append(item)
+            if len(out) >= max(1, int(limit)):
+                break
+        return out
+    except Exception:
+        app.logger.exception("Backend web search failed")
+        return []
+
+
+def open_backend_search_results(query):
+    """Render search results inside the shared Chromium session without Google/Bing/DDG."""
+    results = backend_web_search_results(query, limit=8)
+    if not results:
+        return False, 0
+    cards = []
+    for i, item in enumerate(results, 1):
+        u = html.escape(item["url"], quote=True)
+        t = html.escape(item.get("title") or item["url"])
+        cards.append(
+            f'<a class="r" href="{u}"><b>{i}. {t}</b><span>{u}</span></a>'
+        )
+    q = html.escape(str(query))
+    page = f"""<!doctype html><html lang="he" dir="rtl"><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>DEAN Search</title>
+    <style>
+    body{{margin:0;background:#071018;color:#eef7ff;font-family:-apple-system,BlinkMacSystemFont,Arial;padding:26px}}
+    .head{{font-size:28px;font-weight:800;margin-bottom:8px}} .sub{{color:#9db2c8;margin-bottom:22px}}
+    .r{{display:block;text-decoration:none;color:#fff;background:#0e1b28;border:1px solid #263a4e;
+    border-radius:16px;padding:16px 18px;margin:11px 0}} .r:active{{transform:scale(.99)}}
+    .r span{{display:block;color:#7fb8df;font-size:12px;margin-top:7px;direction:ltr;text-align:left;overflow:hidden}}
+    </style><body><div class="head">DEAN Search</div><div class="sub">תוצאות עבור: {q}</div>
+    {''.join(cards)}</body></html>"""
+    data_url = "data:text/html;charset=utf-8," + quote(page, safe="")
+    return bool(persistent_browser_navigate(data_url)), len(results)
+
+
 def extract_search_query(text):
     """Extract only the actual search terms from natural Hebrew/English speech."""
     s = re.sub(r"[\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff]", "", str(text))
@@ -461,7 +538,7 @@ def maybe_handle_local_command(message):
     if shared_context and image_match2:
         query = image_match2.group(1).strip(" .,!?:;")
         if query:
-            ok = persistent_browser_navigate("https://www.google.com/search?tbm=isch&hl=he&gl=il&q=" + quote_plus(query))
+            ok, _count = open_backend_search_results(query + " images photos")
             if ok:
                 return "בוצע. פתחתי במסך המשותף חיפוש תמונות: " + query
             ensure_persistent_browser()
@@ -481,13 +558,10 @@ def maybe_handle_local_command(message):
     if search_intent:
         query = extract_search_query(text)
         if query:
-            # Search directly in Google; DuckDuckGo was timing out from the Render browser.
-            url = "https://www.google.com/search?hl=he&gl=il&q=" + quote_plus(query)
-            ok = persistent_browser_navigate(url)
+            ok, count = open_backend_search_results(query)
             if ok:
-                return "בוצע. חיפשתי במסך המשותף: " + query
-            ensure_persistent_browser()
-            return "הדפדפן המשותף מתחבר. נסה שוב בעוד כמה שניות."
+                return f"בוצע. מצאתי {count} תוצאות ופתחתי אותן במסך המשותף: " + query
+            return "לא הצלחתי להביא תוצאות כרגע. נסה שוב בעוד כמה שניות."
 
     # Shared browser now uses DEAN's own live viewer for the already-running
     # persistent Chromium session. This avoids the generic Browserless debugger.
@@ -670,15 +744,15 @@ def run_browser_agent(url, goal):
         m = re.search(r"(?:תראה לי\s+)?(?:תמונות(?:\s+של)?|תביא לי תמונות של|images?\s+(?:of|for)?)\s+(.+)$", goal_text, re.I)
         if m:
             q = m.group(1).strip(" .,!?:;")
-            ok = persistent_browser_navigate("https://duckduckgo.com/?kl=il-he&iax=images&ia=images&q=" + quote_plus(q))
-            return {"ok": bool(ok), "action": "google_images", "query": q}
+            ok, count = open_backend_search_results(q + " images photos")
+            return {"ok": bool(ok), "action": "image_web_search", "query": q, "results": count}
 
         # Ordinary Google-search intent.
         m = re.search(r"(?:חפש|תחפש|search(?:\s+for)?)", goal_text, re.I)
         if m:
             q = extract_search_query(goal_text)
-            ok = persistent_browser_navigate("https://duckduckgo.com/?kl=il-he&q=" + quote_plus(q))
-            return {"ok": bool(ok), "action": "web_search", "query": q}
+            ok, count = open_backend_search_results(q)
+            return {"ok": bool(ok), "action": "web_search", "query": q, "results": count}
 
         if url_text:
             ok = persistent_browser_navigate(url_text)
