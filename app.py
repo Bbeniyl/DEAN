@@ -381,9 +381,18 @@ def maybe_handle_local_command(message):
 
     # Beniyl often uses the single word "דפדפן" as a direct command.
     # Treat that exact short command as "open the shared browser" instead of sending it to the model.
-    bare_browser_command = text.strip(" .,!?:;") in {"דפדפן", "הדפדפן"}
+    stripped_browser = text.strip(" .,!?:;")
+    bare_browser_command = stripped_browser in {"דפדפן", "הדפדפן"}
 
-    if (wants_shared_browser and wants_open) or bare_browser_command:
+    # Natural phrases Beniyl uses, e.g. "דין הדפדפן המשותף".
+    # If the message clearly names the shared browser, opening it is the intended action
+    # even when the verb "פתח" is omitted.
+    mentions_shared_browser = (
+        ("דפדפן" in text and "משותף" in text)
+        or ("דפד" in text and "משות" in text)
+    )
+
+    if mentions_shared_browser or (wants_shared_browser and wants_open) or bare_browser_command:
         result = start_tinyfish_live_browser()
         if not result.get("ok"):
             return "לא הצלחתי לפתוח דפדפן משותף דרך TinyFish: " + str(result.get("error") or result)
