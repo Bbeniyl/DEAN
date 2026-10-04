@@ -152,6 +152,32 @@ def _runner():
             time.sleep(3)
 
 
+def wake_browser_service():
+    """Wake the Browserless web service without exposing the token."""
+    try:
+        import requests as _requests
+        if not BASE_URL or not TOKEN:
+            return False
+        r = _requests.get(BASE_URL + "/active", params={"token": TOKEN}, timeout=20)
+        return r.status_code < 500
+    except Exception:
+        return False
+
+
+def wait_until_ready(timeout=25):
+    ensure_started()
+    # Trigger Render wake-up immediately if the browser service is sleeping.
+    wake_browser_service()
+    deadline = time.time() + max(1, float(timeout))
+    while time.time() < deadline:
+        with _lock:
+            ready = bool(_state.get("connected") and _state.get("viewer_ready") and _cdp_session_id)
+        if ready:
+            return True
+        time.sleep(0.5)
+    return False
+
+
 def ensure_started():
     global _thread
     if not _is_self_hosted() or not TOKEN:
@@ -175,43 +201,49 @@ def navigate(url):
     value = str(url).strip()
     if not value.startswith(("http://", "https://")):
         value = "https://" + value
-    sid = _cdp_session_id
-    if not sid:
+    if not _cdp_session_id and not wait_until_ready(25):
         return False
-    _send("Page.navigate", {"url": value}, sid)
-    return True
+    try:
+        _send("Page.navigate", {"url": value}, _cdp_session_id)
+        return True
+    except Exception:
+        _set(connected=False, viewer_ready=False)
+        if wait_until_ready(20):
+            _send("Page.navigate", {"url": value}, _cdp_session_id)
+            return True
+        return False
 
 
 def click(x, y):
-    sid = _cdp_session_id
-    if not sid:
+    if not _cdp_session_id and not wait_until_ready(20):
         return False
     x = float(x)
     y = float(y)
-    _send("Input.dispatchMouseEvent", {"type": "mousePressed", "x": x, "y": y, "button": "left", "clickCount": 1}, sid)
-    _send("Input.dispatchMouseEvent", {"type": "mouseReleased", "x": x, "y": y, "button": "left", "clickCount": 1}, sid)
-    return True
-
-
-def type_text(text):
-    sid = _cdp_session_id
-    if not sid:
+    try:
+        _send("Input.dispatchMouseEvent", {"type": "mousePressed", "x": x, "y": y, "button": "left", "clickCount": 1}, _cdp_session_id)
+        _send("Input.dispatchMouseEvent", {"type": "mouseReleased", "x": x, "y": y, "button": "left", "clickCount": 1}, _cdp_session_id)
+        return True
+    except Exception:
+        _set(connected=False, viewer_ready=False)
+        return False\n\ndef type_text(text):
+    if not _cdp_session_id and not wait_until_ready(20):
         return False
-    _send("Input.insertText", {"text": str(text)}, sid)
-    return True
-
-
-def press_key(key):
-    sid = _cdp_session_id
-    if not sid:
+    try:
+        _send("Input.insertText", {"text": str(text)}, _cdp_session_id)
+        return True
+    except Exception:
+        _set(connected=False, viewer_ready=False)
+        return False\n\ndef press_key(key):
+    if not _cdp_session_id and not wait_until_ready(20):
         return False
     key = str(key)
-    _send("Input.dispatchKeyEvent", {"type": "keyDown", "key": key}, sid)
-    _send("Input.dispatchKeyEvent", {"type": "keyUp", "key": key}, sid)
-    return True
-
-
-def _keep_browser_service_awake():
+    try:
+        _send("Input.dispatchKeyEvent", {"type": "keyDown", "key": key}, _cdp_session_id)
+        _send("Input.dispatchKeyEvent", {"type": "keyUp", "key": key}, _cdp_session_id)
+        return True
+    except Exception:
+        _set(connected=False, viewer_ready=False)
+        return False\n\ndef _keep_browser_service_awake():
     """Keep the free Render browser service warm so its Chromium session does not hibernate."""
     import requests as _requests
     while True:
@@ -224,7 +256,7 @@ def _keep_browser_service_awake():
                 )
         except Exception:
             pass
-        time.sleep(240)
+        time.sleep(60)
 
 
 def start_keepalive():
