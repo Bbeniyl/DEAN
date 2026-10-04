@@ -400,20 +400,29 @@ def start_tinyfish_live_browser(url="https://www.google.com", goal="Open the pag
     return {"ok": False, "error": state.get("error") or "live_url_timeout"}
 
 def extract_search_query(text):
-    """Extract only the user's search terms from natural Hebrew/English search commands."""
+    """Extract only the actual search terms from natural Hebrew/English speech."""
     s = re.sub(r"[\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff]", "", str(text))
     s = " ".join(s.split()).strip(" .,!?:;")
-    # Remove DEAN wake word/name.
-    s = re.sub(r"^(?:דין|dean)\s+", "", s, flags=re.I)
-    # Remove common command prefixes.
-    s = re.sub(r"^(?:שומע\s+)?(?:חפש(?:\s+לי)?|תחפש(?:\s+לי)?|תמצא(?:\s+לי)?|תעשה\s+לי\s+חיפוש|תראה\s+לי)\s+", "", s, flags=re.I)
-    # Remove browser/provider phrasing.
+
+    # In speech the user may start with chatter such as "מה קורה דין..."
+    # Find the LAST explicit search verb and take only what follows it.
+    matches = list(re.finditer(
+        r"(?:חפש(?:\s+לי)?|תחפש(?:\s+לי)?|תמצא(?:\s+לי)?|תעשה\s+לי\s+חיפוש|תראה\s+לי)\s+",
+        s,
+        re.I,
+    ))
+    if matches:
+        s = s[matches[-1].end():]
+
+    # Remove provider/browser words that may immediately follow the command.
     s = re.sub(r"^(?:ב[- ]?(?:google|גוגל)|(?:google|גוגל)|במסך\s+המשותף|בדפדפן\s+המשותף)\s+", "", s, flags=re.I)
-    # Speech-to-text filler before the actual term.
-    s = re.sub(r"^(?:סי\s+)?", "", s, flags=re.I)
-    # Remove trailing execution phrasing if the model/user adds it.
-    s = re.sub(r"\s+(?:והצג|ותראה|במסך\s+המשותף|בדפדפן\s+המשותף).*$", "", s, flags=re.I)
-    # Trim wrapping quotes.
+
+    # Common speech-to-text filler.
+    s = re.sub(r"^(?:לי\s+)?", "", s, flags=re.I)
+
+    # Remove trailing execution/meta phrasing.
+    s = re.sub(r"\s+(?:והצג|ותראה|במסך\s+המשותף|בדפדפן\s+המשותף|אם\s+לא\s+תמצא.*)$", "", s, flags=re.I)
+
     return s.strip(" \"'׳״.,!?;:")
 
 def maybe_handle_local_command(message):
