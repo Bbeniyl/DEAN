@@ -12,6 +12,8 @@ TOKEN = (os.getenv("BROWSERLESS_API_KEY", "") or "").strip().strip('"').strip("'
 
 _lock = threading.Lock()
 _send_lock = threading.Lock()
+_pending_lock = threading.Lock()
+_pending = {}
 _thread = None
 _ws = None
 _cdp_session_id = None
@@ -79,6 +81,47 @@ def _wait_for_response(ws, wanted_id, timeout=20):
     raise TimeoutError("cdp response timeout")
 
 
+def _dispatch_pending(event):
+    rid = event.get("id") if isinstance(event, dict) else None
+    if rid is None:
+        return False
+    with _pending_lock:
+        item = _pending.get(rid)
+        if not item:
+            return False
+        item["response"] = event
+        item["event"].set()
+        return True
+
+
+def _send_wait(method, params=None, session_id=None, timeout=10):
+    global _ws
+    ws = _ws
+    if not ws:
+        raise RuntimeError("browser_not_connected")
+    rid = _new_id()
+    waiter = threading.Event()
+    with _pending_lock:
+        _pending[rid] = {"event": waiter, "response": None}
+    msg = {"id": rid, "method": method, "params": params or {}}
+    if session_id:
+        msg["sessionId"] = session_id
+    try:
+        with _send_lock:
+            ws.send(json.dumps(msg))
+        if not waiter.wait(timeout):
+            raise TimeoutError(f"cdp timeout: {method}")
+        with _pending_lock:
+            item = _pending.pop(rid, None)
+        response = (item or {}).get("response") or {}
+        if response.get("error"):
+            raise RuntimeError(str(response.get("error"))[:180])
+        return response
+    finally:
+        with _pending_lock:
+            _pending.pop(rid, None)
+
+
 def _runner():
     global _ws, _cdp_session_id, _latest_frame
     while True:
@@ -129,6 +172,7 @@ def _runner():
                         event = json.loads(raw)
                     except Exception:
                         continue
+                    _dispatch_pending(event)
                     if event.get("id") == shot_id:
                         data = ((event.get("result") or {}).get("data"))
                         if data:
@@ -201,68 +245,67 @@ def navigate(url):
     value = str(url).strip()
     if not value.startswith(("http://", "https://", "data:")):
         value = "https://" + value
-    if not _cdp_session_id and not wait_until_ready(25):
+    if not _cdp_session_id and not wait_until_ready(30):
         return False
     try:
-        _send("Page.navigate", {"url": value}, _cdp_session_id)
+        r = _send_wait("Page.navigate", {"url": value}, _cdp_session_id, timeout=12)
+        result = r.get("result") or {}
+        if result.get("errorText"):
+            _set(last_error=str(result.get("errorText"))[:180])
+            return False
         return True
-    except Exception:
-        _set(connected=False, viewer_ready=False)
-        if wait_until_ready(20):
-            _send("Page.navigate", {"url": value}, _cdp_session_id)
-            return True
+    except Exception as exc:
+        _set(connected=False, viewer_ready=False, last_error=f"{type(exc).__name__}: {str(exc)[:180]}")
         return False
 
 
 def click(x, y):
     if not _cdp_session_id and not wait_until_ready(20):
         return False
-    x = float(x)
-    y = float(y)
     try:
-        _send("Input.dispatchMouseEvent", {"type": "mousePressed", "x": x, "y": y, "button": "left", "clickCount": 1}, _cdp_session_id)
-        _send("Input.dispatchMouseEvent", {"type": "mouseReleased", "x": x, "y": y, "button": "left", "clickCount": 1}, _cdp_session_id)
+        x = float(x); y = float(y)
+        _send_wait("Input.dispatchMouseEvent", {"type":"mousePressed","x":x,"y":y,"button":"left","clickCount":1}, _cdp_session_id, 8)
+        _send_wait("Input.dispatchMouseEvent", {"type":"mouseReleased","x":x,"y":y,"button":"left","clickCount":1}, _cdp_session_id, 8)
         return True
-    except Exception:
-        _set(connected=False, viewer_ready=False)
+    except Exception as exc:
+        _set(last_error=f"{type(exc).__name__}: {str(exc)[:180]}")
         return False
+
 
 def scroll_by(delta_x=0, delta_y=0, x=512, y=350):
     if not _cdp_session_id and not wait_until_ready(20):
         return False
     try:
-        _send("Input.dispatchMouseEvent", {
-            "type": "mouseWheel",
-            "x": float(x),
-            "y": float(y),
-            "deltaX": float(delta_x),
-            "deltaY": float(delta_y),
-        }, _cdp_session_id)
+        _send_wait("Input.dispatchMouseEvent", {
+            "type":"mouseWheel","x":float(x),"y":float(y),
+            "deltaX":float(delta_x),"deltaY":float(delta_y),
+        }, _cdp_session_id, 8)
         return True
-    except Exception:
-        _set(connected=False, viewer_ready=False)
+    except Exception as exc:
+        _set(last_error=f"{type(exc).__name__}: {str(exc)[:180]}")
         return False
 
 
 def evaluate_js(expression):
-    """Execute a small JavaScript action in the current shared page."""
     if not _cdp_session_id and not wait_until_ready(30):
-        return False
+        return None
     try:
-        _send("Runtime.evaluate", {
-            "expression": str(expression),
-            "userGesture": True,
-            "awaitPromise": False,
-            "returnByValue": False,
-        }, _cdp_session_id)
-        return True
-    except Exception:
-        _set(connected=False, viewer_ready=False)
-        return False
+        r = _send_wait("Runtime.evaluate", {
+            "expression":str(expression),
+            "userGesture":True,
+            "awaitPromise":True,
+            "returnByValue":True,
+        }, _cdp_session_id, 10)
+        result = ((r.get("result") or {}).get("result") or {})
+        if result.get("subtype") == "error":
+            return None
+        return result.get("value")
+    except Exception as exc:
+        _set(last_error=f"{type(exc).__name__}: {str(exc)[:180]}")
+        return None
 
 
 def click_text(text):
-    """Click a visible element whose text/label contains the requested phrase."""
     needle = str(text or "").strip()
     if not needle:
         return False
@@ -290,30 +333,32 @@ def click_text(text):
   return true;
 }})()
 """
-    return evaluate_js(expression)
+    return evaluate_js(expression) is True
 
 
 def type_text(text):
     if not _cdp_session_id and not wait_until_ready(20):
         return False
     try:
-        _send("Input.insertText", {"text": str(text)}, _cdp_session_id)
+        _send_wait("Input.insertText", {"text":str(text)}, _cdp_session_id, 8)
         return True
-    except Exception:
-        _set(connected=False, viewer_ready=False)
+    except Exception as exc:
+        _set(last_error=f"{type(exc).__name__}: {str(exc)[:180]}")
         return False
+
 
 def press_key(key):
     if not _cdp_session_id and not wait_until_ready(20):
         return False
     key = str(key)
     try:
-        _send("Input.dispatchKeyEvent", {"type": "keyDown", "key": key}, _cdp_session_id)
-        _send("Input.dispatchKeyEvent", {"type": "keyUp", "key": key}, _cdp_session_id)
+        _send_wait("Input.dispatchKeyEvent", {"type":"keyDown","key":key}, _cdp_session_id, 8)
+        _send_wait("Input.dispatchKeyEvent", {"type":"keyUp","key":key}, _cdp_session_id, 8)
         return True
-    except Exception:
-        _set(connected=False, viewer_ready=False)
+    except Exception as exc:
+        _set(last_error=f"{type(exc).__name__}: {str(exc)[:180]}")
         return False
+
 
 def _keep_browser_service_awake():
     """Keep the free Render browser service warm so its Chromium session does not hibernate."""
