@@ -775,16 +775,23 @@ def maybe_handle_local_command(message):
                 return f"בוצע. מצאתי {count} תוצאות ופתחתי אותן במסך המשותף: " + query
             return "לא הצלחתי להביא תוצאות כרגע. נסה שוב בעוד כמה שניות."
 
-    # Shared browser now uses DEAN's own live viewer for the already-running
-    # persistent Chromium session. This avoids the generic Browserless debugger.
-    if mentions_shared_browser or (wants_shared_browser and wants_open) or bare_browser_command or wants_google:
+    # Shared browser viewer itself should only be returned when Beniyl asks to open/show the viewer.
+    # If he says "open the site/page in the shared browser", that is an action request and must
+    # fall through to browser_run so the live page actually changes.
+    asks_for_viewer_itself = (
+        bare_browser_command
+        or (
+            wants_open
+            and mentions_shared_browser
+            and not any(word in text for word in ("אתר", "עמוד", "דף", "תוצאה", "קישור", "לינק"))
+        )
+    )
+    if asks_for_viewer_itself:
         st = persistent_browser_status()
-        if wants_google:
-            persistent_browser_navigate("https://www.google.com")
         if not st.get("connected"):
             ensure_persistent_browser()
             return "הדפדפן המשותף עדיין מתחבר. נסה שוב בעוד כמה שניות."
-        return "הדפדפן המשותף הפעיל:\\n" + url_for("shared_browser", _external=True)
+        return "הדפדפן המשותף פתוח."
 
     prefixes = ["תזכור ", "תזכרי ", "תשמור ", "תשמרי ", "שמור ", "שמרי "]
     for prefix in prefixes:
@@ -988,6 +995,7 @@ def dean_instructions(current_message=""):
 - לפני פעולה חיצונית רגישה, צור בקשת אישור ברורה ואל תטען שהפעולה בוצעה לפני שיש כלי אמיתי ותוצאה מאומתת.
 - כשאין עדיין כלי שמסוגל לבצע פעולה, אמור במדויק שהכלי עדיין לא מחובר במקום להעמיד פנים שביצעת.
 - כלי browser_run שולט בדפדפן המשותף הקבוע של DEAN שרץ ב-Render. כשבניאל אומר "במסך המשותף", "בגוגל", "תראה לי תמונות", "תחפש", "תמצא", "פתח תוצאה" או בקשה דומה, זו פקודת ביצוע בדפדפן. בצע אותה בפועל.
+- כשבניאל מבקש לפתוח אתר או עמוד בדפדפן המשותף, הפעולה היא לשנות פיזית את העמוד במסך המשותף. אל תחזיר לו את כתובת הדפדפן במקום לבצע ואל תגיד "סיימתי" לפני שהניווט אושר בפועל.
 - לחיפוש רגיל או תמונות אל תפתח Google/Bing/DuckDuckGo בדפדפן. החיפוש נעשה מאחורי הקלעים דרך web_search והתוצאות מוצגות בדף DEAN Search, כדי לא להיתקע ב-CAPTCHA.
 - אם קיימות תוצאות חיפוש שמורות ובניאל אומר "פתח את התוצאה הראשונה/מספר 2", פתח את התוצאה עצמה במסך המשותף.
 - אל תגיד שאין כלי גלישה לפני שניסית את כלי הדפדפן וקיבלת שגיאה אמיתית.
@@ -1026,6 +1034,16 @@ def run_browser_agent(url, goal):
             ok, count = open_backend_search_results(q)
             return {"ok": bool(ok), "action": "web_search", "query": q, "results": count}
 
+        open_site_intent = bool(re.search(
+            r"(?:פתח|תפתח|כנס|תיכנס|עבור|תעבור|נווט|תנווט).*(?:אתר|עמוד|דף)|(?:אתר|עמוד|דף).*(?:בדפדפן|במסך)",
+            goal_text,
+            re.I,
+        ))
+        if url_text and open_site_intent:
+            ok = persistent_browser_navigate(url_text)
+            st = persistent_browser_status()
+            return {"ok": bool(ok), "action": "navigate", "url": url_text, "current_url": st.get("current_url","")}
+
         click_match = re.search(r"(?:לחץ|תלחץ|פתח|תפתח)(?:\s+לי)?(?:\s+על)?\s+[\"']?(.+?)[\"']?$", goal_text, re.I)
         if click_match and not re.search(r"(?:חפש|תחפש|תמצא)", goal_text, re.I):
             label = click_match.group(1).strip(" .,!?:;\"'")
@@ -1037,7 +1055,8 @@ def run_browser_agent(url, goal):
 
         if url_text:
             ok = persistent_browser_navigate(url_text)
-            return {"ok": bool(ok), "action": "navigate", "url": url_text}
+            st = persistent_browser_status()
+            return {"ok": bool(ok), "action": "navigate", "url": url_text, "current_url": st.get("current_url","")}
 
         return {"ok": False, "error": "missing_browser_action"}
     except Exception as e:
