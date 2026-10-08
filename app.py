@@ -17,7 +17,7 @@ from flask import (
 )
 from openai import OpenAI
 from steel_client import configured as steel_configured, create_session as steel_create_session, validate_key as steel_validate_key, active_session_status
-from persistent_browser import ensure_started as ensure_persistent_browser, status as persistent_browser_status, latest_frame as persistent_browser_frame, navigate as persistent_browser_navigate, click as persistent_browser_click, scroll_by as persistent_browser_scroll, type_text as persistent_browser_type, press_key as persistent_browser_key, start_keepalive as start_browser_keepalive, wait_until_ready as browser_wait_until_ready
+from persistent_browser import ensure_started as ensure_persistent_browser, status as persistent_browser_status, latest_frame as persistent_browser_frame, navigate as persistent_browser_navigate, click as persistent_browser_click, click_text as persistent_browser_click_text, scroll_by as persistent_browser_scroll, type_text as persistent_browser_type, press_key as persistent_browser_key, start_keepalive as start_browser_keepalive, wait_until_ready as browser_wait_until_ready
 
 app = Flask(__name__)
 # browser reconnect build marker
@@ -975,6 +975,8 @@ def dean_instructions(current_message=""):
 - אם קיימות תוצאות חיפוש שמורות ובניאל אומר "פתח את התוצאה הראשונה/מספר 2", פתח את התוצאה עצמה במסך המשותף.
 - אל תגיד שאין כלי גלישה לפני שניסית את כלי הדפדפן וקיבלת שגיאה אמיתית.
 - כאשר כלי ביצוע מחובר, פעל כמתזמר: בחר את הכלי המתאים, בצע, בדוק תוצאה, תקן אם נכשל והמשך עד השלמת המטרה.
+- בדפדפן המשותף יש גם לחיצה לפי טקסט: אם בניאל אומר "לחץ על כניסה", "פתח פרטים" וכדומה, השתמש בכלי כדי ללחוץ על הכפתור או הקישור המתאים במקום רק להסביר לו איפה הוא.
+- אל תבצע בלחיצה אוטומטית מחיקה, תשלום, רכישה, פרסום או העברת כסף בלי אישור מפורש.
 """.strip()
 
 def run_browser_agent(url, goal):
@@ -1004,6 +1006,15 @@ def run_browser_agent(url, goal):
             q = normalize_search_query(extract_search_query(goal_text))
             ok, count = open_backend_search_results(q)
             return {"ok": bool(ok), "action": "web_search", "query": q, "results": count}
+
+        click_match = re.search(r"(?:לחץ|תלחץ|פתח|תפתח)(?:\s+לי)?(?:\s+על)?\s+[\"']?(.+?)[\"']?$", goal_text, re.I)
+        if click_match and not re.search(r"(?:חפש|תחפש|תמצא)", goal_text, re.I):
+            label = click_match.group(1).strip(" .,!?:;\"'")
+            unsafe_click_words = ("מחק", "שלם", "תשלום", "קנה", "רכוש", "פרסם", "שלח כסף", "העבר כסף", "אישור סופי")
+            if any(w in label for w in unsafe_click_words):
+                return {"ok": False, "requires_confirmation": True, "action": "click_text", "label": label}
+            ok = persistent_browser_click_text(label)
+            return {"ok": bool(ok), "action": "click_text", "label": label}
 
         if url_text:
             ok = persistent_browser_navigate(url_text)
