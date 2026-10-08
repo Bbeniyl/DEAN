@@ -133,7 +133,7 @@ def _runner():
             _ws = ws
             _set(connected=True, last_error="")
 
-            create_id = _send("Target.createTarget", {"url": "https://www.google.com"})
+            create_id = _send("Target.createTarget", {"url": "about:blank"})
             created = _wait_for_response(ws, create_id)
             target_id = ((created.get("result") or {}).get("targetId"))
             if not target_id:
