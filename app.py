@@ -158,7 +158,7 @@ def init_db():
 
 init_db()
 
-CURRENT_RELEASE_NOTES = """בדיקת כפתור-כפתור: רענון אמיתי של האתר, אימות שגיאות בכל פקדי הדפדפן, תיקון תזכורות 'מחר ב-8', גיבוי העתקה באייפד, ניקוי Steel ישן וטיפול טוב יותר במיקרופון."""
+CURRENT_RELEASE_NOTES = """בדיקת מערכת מלאה מקצה לקצה: מסד נתונים, מודל, קול, דפדפן, ניווט, DOM, לחיצה, הקלדה, Enter, גלילה, רענון ותמונה. בנוסף תוקן מצב שבו אתר תקוע סימן בטעות את הדפדפן עצמו כמנותק."""
 def register_release():
     try:
         with get_db() as con:
@@ -1991,6 +1991,18 @@ document.getElementById("chatMic").onclick=()=>{
 </html>
 """
 
+@app.get("/browser-test")
+def browser_test_page():
+    return """<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>DEAN Self Test</title></head>
+<body style="font-family:sans-serif">
+<form onsubmit="event.preventDefault();document.body.dataset.enter='1'">
+<button type="button" onclick="document.body.dataset.clicked='1'">בדיקת לחיצה</button>
+<label for="testInput">שדה בדיקה</label>
+<input id="testInput">
+</form>
+<div style="height:1600px"></div><div id="bottom">סוף</div>
+</body></html>""", 200, {"Content-Type":"text/html; charset=utf-8","Cache-Control":"no-store"}
+
 @app.get("/browser-start")
 def browser_start():
     return """<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DEAN Browser</title><style>html,body{height:100%;margin:0}body{display:grid;place-items:center;background:#0b0f16;color:#eef6ff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}.box{text-align:center}.d{width:92px;height:92px;border-radius:28px;display:grid;place-items:center;margin:0 auto 22px;background:linear-gradient(135deg,#5ce1ff,#7b61ff);color:#061019;font-weight:900;font-size:38px;box-shadow:0 18px 60px rgba(75,174,255,.28)}h1{margin:0 0 10px;font-size:34px}p{margin:0;color:#9eb2c8;font-size:18px}</style></head><body><div class="box"><div class="d">D</div><h1>DEAN Browser</h1><p>מחובר ומוכן לעבודה</p></div></body></html>""", 200, {"Content-Type":"text/html; charset=utf-8", "Cache-Control":"no-store"}
@@ -2177,19 +2189,106 @@ def api_tiktok_status():
         updated=(st or {}).get("updated",""),
     )
 
+_selftest_lock = threading.Lock()
+_selftest_result = {"status":"not_run","checks":{},"finished_at":None}
+
+def run_full_selftest():
+    global _selftest_result
+    checks={}
+    def record(name, ok, detail=""):
+        checks[name]={"ok":bool(ok),"detail":str(detail)[:180]}
+    try:
+        # Database + core tables
+        with get_db() as con:
+            record("database_select", con.execute("SELECT 1").fetchone() is not None)
+            for table in ("messages","memories","tasks","reminders","action_requests","releases","login_attempts"):
+                try:
+                    con.execute(f"SELECT 1 FROM {table} LIMIT 1").fetchone()
+                    record("db_"+table, True)
+                except Exception as exc:
+                    record("db_"+table, False, type(exc).__name__)
+
+        # Model API
+        try:
+            r=client.responses.create(
+                model=MODEL,
+                input="Return exactly OK",
+                reasoning={"effort":"low"},
+                max_output_tokens=8,
+            )
+            record("model_api", "OK" in (r.output_text or "").upper(), (r.output_text or "")[:80])
+        except Exception as exc:
+            record("model_api", False, f"{type(exc).__name__}: {str(exc)[:120]}")
+
+        # Speech backend
+        try:
+            a=client.audio.speech.create(model="gpt-4o-mini-tts",voice="cedar",input="בדיקה")
+            size=len(getattr(a,"content",b"") or b"")
+            record("speech_tts", size>100, f"bytes={size}")
+        except Exception as exc:
+            record("speech_tts", False, f"{type(exc).__name__}: {str(exc)[:120]}")
+
+        # Persistent browser end-to-end on our own controlled page.
+        ready=browser_wait_until_ready(70)
+        record("browser_ready", ready, persistent_browser_status())
+        if ready:
+            test_url="https://dean-agent-5y18.onrender.com/browser-test"
+            record("browser_navigate", persistent_browser_navigate(test_url), persistent_browser_status().get("current_url",""))
+            time.sleep(.4)
+            record("browser_dom", persistent_browser_eval("document.title")=="DEAN Self Test", persistent_browser_eval("document.title"))
+            click_ok=persistent_browser_click_text("בדיקת לחיצה")
+            time.sleep(.15)
+            record("browser_click", click_ok and persistent_browser_eval("document.body.dataset.clicked")=="1")
+            focus_ok=persistent_browser_click_text("שדה בדיקה")
+            type_ok=persistent_browser_type("abc123")
+            time.sleep(.15)
+            record("browser_type", focus_ok and type_ok and persistent_browser_eval("document.getElementById('testInput').value")=="abc123")
+            enter_ok=persistent_browser_key("Enter")
+            time.sleep(.15)
+            record("browser_enter", enter_ok and persistent_browser_eval("document.body.dataset.enter")=="1")
+            scroll_ok=persistent_browser_scroll(0,500,512,350)
+            time.sleep(.2)
+            y=persistent_browser_eval("window.scrollY")
+            record("browser_scroll", scroll_ok and isinstance(y,(int,float)) and y>0, y)
+            record("browser_reload", persistent_browser_reload())
+            time.sleep(.2)
+            record("browser_frame", bool(persistent_browser_frame()), persistent_browser_status().get("frame_age"))
+            restore=persistent_browser_navigate("https://dean-agent-5y18.onrender.com/browser-start")
+            record("browser_restore", restore)
+
+        ok=all(v.get("ok") for v in checks.values())
+        result={"status":"pass" if ok else "fail","checks":checks,"finished_at":utc_now()}
+    except Exception as exc:
+        result={"status":"fail","checks":checks,"finished_at":utc_now(),"error":f"{type(exc).__name__}: {str(exc)[:180]}"}
+    with _selftest_lock:
+        _selftest_result=result
+    print("FULL_SELFTEST", json.dumps(result,ensure_ascii=False), flush=True)
+    return result
+
+def _run_full_selftest_later():
+    time.sleep(15)
+    run_full_selftest()
+threading.Thread(target=_run_full_selftest_later,daemon=True,name="full-selftest").start()
+
 @app.get("/health")
 def health():
     try:
         with get_db() as con:
             con.execute("SELECT 1").fetchone()
+        bst=persistent_browser_status()
+        browser_ok=bool(bst.get("connected") and bst.get("viewer_ready") and bst.get("frame_fresh"))
+        with _selftest_lock:
+            selftest=dict(_selftest_result)
         return jsonify(
-            status="ok",
+            status="ok" if browser_ok else "degraded",
             database="postgres" if DATABASE_URL else "sqlite",
             memory_persistent=bool(DATABASE_URL),
             browser_configured=bool(os.getenv("BROWSERLESS_BASE_URL") and os.getenv("BROWSERLESS_API_KEY")),
-            persistent_browser=persistent_browser_status(),
+            browser_ok=browser_ok,
+            persistent_browser=bst,
             reminders_ok=True,
             speech_backend="openai_tts",
+            selftest=selftest,
         )
     except Exception:
         app.logger.exception("Health check failed")
