@@ -1,3 +1,4 @@
+import json
 import os
 import html
 import sqlite3
@@ -2214,7 +2215,7 @@ def run_full_selftest():
                 model=MODEL,
                 input="Return exactly OK",
                 reasoning={"effort":"low"},
-                max_output_tokens=8,
+                max_output_tokens=32,
             )
             record("model_api", "OK" in (r.output_text or "").upper(), (r.output_text or "")[:80])
         except Exception as exc:
