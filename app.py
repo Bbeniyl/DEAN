@@ -974,6 +974,7 @@ def dean_instructions(current_message=""):
 - לחיפוש רגיל או תמונות אל תפתח Google/Bing/DuckDuckGo בדפדפן. החיפוש נעשה מאחורי הקלעים דרך web_search והתוצאות מוצגות בדף DEAN Search, כדי לא להיתקע ב-CAPTCHA.
 - אם קיימות תוצאות חיפוש שמורות ובניאל אומר "פתח את התוצאה הראשונה/מספר 2", פתח את התוצאה עצמה במסך המשותף.
 - אל תגיד שאין כלי גלישה לפני שניסית את כלי הדפדפן וקיבלת שגיאה אמיתית.
+- בשאלת יכולות כמו "מה אתה יודע לעשות", תאר את הדפדפן המשותף כיכולת מחוברת שקיימת אצלך. אל תגיד "בשיחה הנוכחית אין כלי דפדפן" או ניסוח דומה. רק אם הפעלת browser_run וקיבלת שגיאה אמיתית, אמור שיש כרגע תקלה בחיבור.
 - כאשר כלי ביצוע מחובר, פעל כמתזמר: בחר את הכלי המתאים, בצע, בדוק תוצאה, תקן אם נכשל והמשך עד השלמת המטרה.
 - בדפדפן המשותף יש גם לחיצה לפי טקסט: אם בניאל אומר "לחץ על כניסה", "פתח פרטים" וכדומה, השתמש בכלי כדי ללחוץ על הכפתור או הקישור המתאים במקום רק להסביר לו איפה הוא.
 - אל תבצע בלחיצה אוטומטית מחיקה, תשלום, רכישה, פרסום או העברת כסף בלי אישור מפורש.
@@ -1036,23 +1037,21 @@ def needs_browser(message):
 
 def ask_dean(message):
     history = load_relevant_history(message, recent_limit=10, scan_limit=180, max_extra=6)
-    tools = []
-    if needs_browser(message):
-        tools.append({
-            "type": "function",
-            "name": "browser_run",
-            "description": "Use DEAN's real browser only for an explicit user-requested website action. Never claim success unless the returned result confirms it.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "url": {"type": "string", "description": "The starting https URL."},
-                    "goal": {"type": "string", "description": "Precise goal for the browser agent. Do not include passwords or secret keys."}
-                },
-                "required": ["url", "goal"],
-                "additionalProperties": False
+    tools = [{
+        "type": "function",
+        "name": "browser_run",
+        "description": "DEAN's real persistent shared browser. Use it only for an explicit user-requested website/browser action. The tool being available means the browser capability is connected; never say the browser does not exist merely because you have not invoked it yet. Never claim success unless the returned result confirms it.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "url": {"type": "string", "description": "The starting https URL. Use an empty string when the action is on the current page/search state."},
+                "goal": {"type": "string", "description": "Precise goal for the browser agent. Do not include passwords or secret keys."}
             },
-            "strict": True
-        })
+            "required": ["url", "goal"],
+            "additionalProperties": False
+        },
+        "strict": True
+    }]
     response = client.responses.create(
         model=MODEL,
         instructions=dean_instructions(message),
