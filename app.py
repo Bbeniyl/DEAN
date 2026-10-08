@@ -1816,6 +1816,10 @@ document.getElementById("chatMic").onclick=()=>{
 </html>
 """
 
+@app.get("/browser-start")
+def browser_start():
+    return """<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DEAN Browser</title><style>html,body{height:100%;margin:0}body{display:grid;place-items:center;background:#0b0f16;color:#eef6ff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}.box{text-align:center}.d{width:92px;height:92px;border-radius:28px;display:grid;place-items:center;margin:0 auto 22px;background:linear-gradient(135deg,#5ce1ff,#7b61ff);color:#061019;font-weight:900;font-size:38px;box-shadow:0 18px 60px rgba(75,174,255,.28)}h1{margin:0 0 10px;font-size:34px}p{margin:0;color:#9eb2c8;font-size:18px}</style></head><body><div class="box"><div class="d">D</div><h1>DEAN Browser</h1><p>מחובר ומוכן לעבודה</p></div></body></html>""", 200, {"Content-Type":"text/html; charset=utf-8", "Cache-Control":"no-store"}
+
 @app.get("/browser")
 @require_login
 def shared_browser():
