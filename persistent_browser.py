@@ -25,6 +25,8 @@ _state = {
     "last_error": "",
     "target_id": None,
     "viewer_ready": False,
+    "current_url": "about:blank",
+    "frame_at": 0,
 }
 
 
@@ -127,7 +129,9 @@ def _runner():
     while True:
         ws = None
         try:
-            _set(started=True, connected=False, viewer_ready=False, last_error="")
+            with _lock:
+                _latest_frame = None
+            _set(started=True, connected=False, viewer_ready=False, target_id=None, current_url="about:blank", frame_at=0, last_error="")
             ws = websocket.create_connection(_ws_url(), timeout=30, origin=BASE_URL)
             ws.settimeout(None)
             _ws = ws
@@ -152,7 +156,7 @@ def _runner():
                 "width": 1024, "height": 700, "deviceScaleFactor": 1, "mobile": False
             }, session_id)
             _send("Page.enable", {}, session_id)
-            _set(viewer_ready=True)
+            _set(viewer_ready=False)
 
             # Capture the real shared page repeatedly. This is more reliable on
             # Render/iPad than CDP screencast events and still uses the same tab.
@@ -180,12 +184,15 @@ def _runner():
                                 frame = base64.b64decode(data)
                                 with _lock:
                                     _latest_frame = frame
+                                _set(viewer_ready=True, frame_at=time.time())
                             except Exception:
                                 pass
                         break
                 time.sleep(0.65)
         except Exception as exc:
-            _set(connected=False, viewer_ready=False, last_error=f"{type(exc).__name__}: {str(exc)[:180]}")
+            with _lock:
+                _latest_frame = None
+            _set(connected=False, viewer_ready=False, target_id=None, frame_at=0, last_error=f"{type(exc).__name__}: {str(exc)[:180]}")
             _ws = None
             _cdp_session_id = None
             try:
@@ -253,6 +260,7 @@ def navigate(url):
         if result.get("errorText"):
             _set(last_error=str(result.get("errorText"))[:180])
             return False
+        _set(current_url=value)
         return True
     except Exception as exc:
         _set(connected=False, viewer_ready=False, last_error=f"{type(exc).__name__}: {str(exc)[:180]}")
