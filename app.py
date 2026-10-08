@@ -169,7 +169,7 @@ def init_db():
 
 init_db()
 
-CURRENT_RELEASE_NOTES = """שכבת הבנת כוונה: DEAN מקשר בין מילים, ההקשר האחרון, האתר הפתוח והקישור האחרון; פותר ניסוחים כמו 'האתר הזה' ו'אותו אתר'; ושואל שאלה קצרה רק כשבאמת חסר יעד."""
+CURRENT_RELEASE_NOTES = """העיגול של DEAN במסך המשותף שודרג לשיחה אמיתית: מונה שניות בזמן חשיבה/ביצוע, הכתבה קולית, ותשובה קולית אוטומטית כשמדברים אליו מהמיקרופון."""
 def register_release():
     try:
         with get_db() as con:
@@ -1681,7 +1681,7 @@ button{font-size:15px;padding:10px 14px;border:1px solid rgba(255,255,255,.10);b
 
   <aside class="chatPane" id="chatPane">
     <div class="chatHead">
-      <span>DEAN</span>
+      <span>DEAN <small id="chatWork" style="font-weight:500;color:#8fa6bf;margin-right:6px"></small></span>
       <button id="closeChat">×</button>
     </div>
     <div class="chatMsgs" id="chatMsgs"></div>
@@ -1700,6 +1700,69 @@ const img=document.getElementById("screen");
 const status=document.getElementById("status");
 const pane=document.getElementById("chatPane");
 const msgs=document.getElementById("chatMsgs");
+const chatWork=document.getElementById("chatWork");
+let chatWorkTimer=null;
+let chatWorkStarted=0;
+let chatAudio=null;
+let chatAudioUrl=null;
+
+function startChatWork(label="חושב"){
+  chatWorkStarted=Date.now();
+  if(chatWorkTimer)clearInterval(chatWorkTimer);
+  const tick=()=>{
+    const s=Math.floor((Date.now()-chatWorkStarted)/1000);
+    chatWork.textContent=label+" · "+s+"ש׳";
+  };
+  tick();
+  chatWorkTimer=setInterval(tick,1000);
+}
+function finishChatWork(){
+  if(chatWorkTimer)clearInterval(chatWorkTimer);
+  chatWorkTimer=null;
+  chatWork.textContent="סיים";
+  setTimeout(()=>{if(!chatWorkTimer)chatWork.textContent="";},1800);
+}
+function failChatWork(){
+  if(chatWorkTimer)clearInterval(chatWorkTimer);
+  chatWorkTimer=null;
+  chatWork.textContent="תקלה";
+}
+function stopChatAudio(){
+  if(chatAudio){try{chatAudio.pause();chatAudio.currentTime=0;}catch(e){} chatAudio=null;}
+  if(chatAudioUrl){try{URL.revokeObjectURL(chatAudioUrl);}catch(e){} chatAudioUrl=null;}
+  try{speechSynthesis.cancel();}catch(e){}
+}
+function chatNativeSpeak(text){
+  try{
+    stopChatAudio();
+    const u=new SpeechSynthesisUtterance(String(text||""));
+    u.lang="he-IL";
+    speechSynthesis.speak(u);
+  }catch(e){}
+}
+async function speakChatReply(text){
+  const clean=String(text||"").trim();
+  if(!clean)return;
+  try{
+    stopChatAudio();
+    const r=await fetch("/api/speech",{
+      method:"POST",
+      credentials:"same-origin",
+      headers:{"Content-Type":"application/json","X-CSRF-Token":csrf},
+      body:JSON.stringify({text:clean})
+    });
+    if(!r.ok)throw new Error("speech");
+    const blob=await r.blob();
+    chatAudioUrl=URL.createObjectURL(blob);
+    chatAudio=new Audio(chatAudioUrl);
+    chatAudio.onended=stopChatAudio;
+    chatAudio.onerror=()=>chatNativeSpeak(clean);
+    await chatAudio.play();
+  }catch(e){
+    chatNativeSpeak(clean);
+  }
+}
+
 
 async function pollStatus(){
   try{
@@ -1824,26 +1887,32 @@ function addMsg(role,text){
   msgs.appendChild(d);
   msgs.scrollTop=msgs.scrollHeight;
 }
-async function sendDeanMessage(text){
+async function sendDeanMessage(text,{speakReply=false}={}){
   text=(text||"").trim();
   if(!text)return;
   addMsg("user",text);
-  status.textContent="DEAN מבצע...";
+  startChatWork("חושב");
   try{
+    const controller=new AbortController();
+    const timeoutId=setTimeout(()=>controller.abort(),80000);
     const r=await fetch("/api/chat",{
       method:"POST",
       credentials:"same-origin",
       headers:{"Content-Type":"application/json","X-CSRF-Token":csrf},
-      body:JSON.stringify({message:text})
+      body:JSON.stringify({message:text}),
+      signal:controller.signal
     });
+    clearTimeout(timeoutId);
     const data=await r.json();
-    addMsg("assistant",data.answer||data.error||"לא התקבלה תשובה");
+    const answer=data.answer||data.error||"לא התקבלה תשובה";
+    addMsg("assistant",answer);
+    finishChatWork();
     setTimeout(refresh,250);
     setTimeout(refresh,900);
-    status.textContent="DEAN Browser · מחובר";
+    if(speakReply) speakChatReply(answer);
   }catch(e){
     addMsg("assistant","שגיאה בחיבור לדין");
-    status.textContent="שגיאה בחיבור לדין";
+    failChatWork();
   }
 }
 
@@ -1852,7 +1921,7 @@ document.getElementById("chatForm").addEventListener("submit",async e=>{
   const input=document.getElementById("chatInput");
   const text=input.value.trim();
   input.value="";
-  await sendDeanMessage(text);
+  await sendDeanMessage(text,{speakReply:false});
 });
 
 document.getElementById("chatMic").onclick=()=>{
@@ -1866,13 +1935,13 @@ document.getElementById("chatMic").onclick=()=>{
   r.interimResults=false;
   r.continuous=false;
   document.getElementById("chatMic").textContent="●";
-  status.textContent="DEAN מקשיב...";
+  chatWork.textContent="מקשיב...";
   r.onresult=async e=>{
     const said=e.results[0][0].transcript.trim();
-    if(said) await sendDeanMessage(said);
+    if(said) await sendDeanMessage(said,{speakReply:true});
   };
-  r.onerror=()=>{status.textContent="לא שמעתי. נסה שוב.";};
-  r.onend=()=>{document.getElementById("chatMic").textContent="🎙️";};
+  r.onerror=()=>{chatWork.textContent="לא שמעתי"; setTimeout(()=>{if(!chatWorkTimer)chatWork.textContent="";},1500);};
+  r.onend=()=>{document.getElementById("chatMic").textContent="🎙️"; if(!chatWorkTimer)chatWork.textContent="";};
   r.start();
 };
 </script>
