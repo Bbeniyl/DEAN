@@ -17,7 +17,7 @@ from flask import (
 )
 from openai import OpenAI
 from steel_client import configured as steel_configured, create_session as steel_create_session, validate_key as steel_validate_key, active_session_status
-from persistent_browser import ensure_started as ensure_persistent_browser, status as persistent_browser_status, latest_frame as persistent_browser_frame, navigate as persistent_browser_navigate, click as persistent_browser_click, click_text as persistent_browser_click_text, scroll_by as persistent_browser_scroll, type_text as persistent_browser_type, press_key as persistent_browser_key, start_keepalive as start_browser_keepalive, wait_until_ready as browser_wait_until_ready
+from persistent_browser import ensure_started as ensure_persistent_browser, status as persistent_browser_status, latest_frame as persistent_browser_frame, navigate as persistent_browser_navigate, evaluate_js as persistent_browser_eval, click as persistent_browser_click, click_text as persistent_browser_click_text, scroll_by as persistent_browser_scroll, type_text as persistent_browser_type, press_key as persistent_browser_key, start_keepalive as start_browser_keepalive, wait_until_ready as browser_wait_until_ready
 
 app = Flask(__name__)
 # browser reconnect build marker
@@ -73,18 +73,20 @@ def _browser_session_diag_later():
 threading.Thread(target=_browser_session_diag_later, daemon=True, name="browser-session-diag").start()
 
 def _persistent_browser_diag_later():
-    time.sleep(18)
     try:
+        ready = browser_wait_until_ready(70)
         st = persistent_browser_status()
+        eval_ok = (persistent_browser_eval("1+1") == 2) if ready else False
         print("PERSISTENT_BROWSER_DIAG", {
             "connected": bool(st.get("connected")),
             "viewer_ready": bool(st.get("viewer_ready")),
             "started": bool(st.get("started")),
             "last_error": str(st.get("last_error") or "")[:160],
             "target_id_present": bool(st.get("target_id")),
+            "cdp_action_test": bool(eval_ok),
         }, flush=True)
     except Exception as exc:
-        print("PERSISTENT_BROWSER_DIAG", {"error": type(exc).__name__}, flush=True)
+        print("PERSISTENT_BROWSER_DIAG", {"error": type(exc).__name__, "message": str(exc)[:160]}, flush=True)
 threading.Thread(target=_persistent_browser_diag_later, daemon=True, name="persistent-browser-diag").start()
 
 def _speech_diag_later():
@@ -100,23 +102,6 @@ def _speech_diag_later():
     except Exception as exc:
         print("SPEECH_DIAG", {"ok": False, "error": type(exc).__name__, "message": str(exc)[:160]}, flush=True)
 threading.Thread(target=_speech_diag_later, daemon=True, name="speech-diag").start()
-
-# Safe startup diagnostic: never logs the Steel key itself.
-try:
-    _steel_raw = os.getenv("STEEL_API_KEY", "")
-    _steel_norm = __import__("steel_client").api_key()
-    _steel_check = steel_validate_key()
-    print("STEEL_DIAG", {
-        "raw_present": bool(_steel_raw),
-        "raw_length": len(_steel_raw),
-        "normalized_length": len(_steel_norm),
-        "starts_with_ste": _steel_norm.startswith("ste-"),
-        "authenticated": _steel_check.get("authenticated", False),
-        "status_code": _steel_check.get("status_code"),
-        "error": str(_steel_check.get("error", ""))[:160] if _steel_check.get("error") else "",
-    }, flush=True)
-except Exception as _steel_exc:
-    print("STEEL_DIAG", {"diagnostic_error": type(_steel_exc).__name__}, flush=True)
 
 def utc_now():
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
