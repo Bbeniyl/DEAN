@@ -1055,11 +1055,11 @@ def run_browser_agent(url, goal):
     """Control DEAN's persistent shared Chromium session."""
     try:
         st = persistent_browser_status()
-        if not st.get("connected"):
+        if not (st.get("connected") and st.get("viewer_ready")):
             ensure_persistent_browser()
-            time.sleep(2)
+            browser_wait_until_ready(35)
             st = persistent_browser_status()
-        if not st.get("connected"):
+        if not (st.get("connected") and st.get("viewer_ready")):
             return {"ok": False, "error": "shared_browser_not_connected", "status": st}
 
         goal_text = str(goal or "").strip()
