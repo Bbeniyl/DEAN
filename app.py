@@ -169,7 +169,7 @@ def init_db():
 
 init_db()
 
-CURRENT_RELEASE_NOTES = """חידוד הבנה והקשר: תיקון מסלול התחברות לדפדפן, ניקוי חיפוש ישן, שמירת הקשר רחבה יותר, למידה מתיקונים, ופחות שאלות מיותרות כשכוונת בניאל ברורה."""
+CURRENT_RELEASE_NOTES = """שכבת הבנת כוונה: DEAN מקשר בין מילים, ההקשר האחרון, האתר הפתוח והקישור האחרון; פותר ניסוחים כמו 'האתר הזה' ו'אותו אתר'; ושואל שאלה קצרה רק כשבאמת חסר יעד."""
 def register_release():
     try:
         with get_db() as con:
@@ -681,10 +681,51 @@ def extract_search_query(text):
 
     return s.strip(" \"'׳״.,!?;:")
 
+def recent_context_url(limit=30):
+    """Return the most recently mentioned external URL from recent conversation context."""
+    try:
+        history = load_history(limit)
+    except Exception:
+        history = []
+    internal_host = "dean-agent-5y18.onrender.com"
+    url_re = re.compile(r"https?://[^\s<>()\[\]{}\"']+", re.I)
+    for item in reversed(history):
+        content = str(item.get("content") or "")
+        urls = url_re.findall(content)
+        for raw in reversed(urls):
+            u = raw.rstrip(".,!?;:׳״")
+            if internal_host not in u:
+                return u
+    return ""
+
+
 def maybe_handle_local_command(message):
     # Normalize real bidi/control characters that can arrive from iPad/Safari/voice input.
     text = re.sub(r"[\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff]", "", str(message))
     text = " ".join(text.split())
+
+    # Natural contextual request: "פתח לי את האתר הזה בדפדפן המשותף".
+    # First resolve "this/that/same site" from the current browser or recent conversation.
+    contextual_site_request = (
+        any(v in text for v in ("פתח", "תפתח", "כנס", "תיכנס", "תעבור", "עבור"))
+        and any(x in text for x in ("אתר", "עמוד", "דף", "קישור", "לינק"))
+        and any(x in text for x in ("הזה", "הזאת", "ההוא", "ההיא", "אותו", "אותה", "הקודם", "הקודמת"))
+        and ("משותף" in text or "דפדפן" in text or "מסך" in text)
+    )
+    if contextual_site_request:
+        candidate = ""
+        st = persistent_browser_status()
+        current = str(st.get("current_url") or "")
+        if current and "browser-start" not in current and not current.startswith("about:"):
+            candidate = current
+        if not candidate:
+            candidate = recent_context_url(40)
+        if candidate:
+            ok = persistent_browser_navigate(candidate)
+            if ok:
+                return "בוצע. פתחתי את האתר במסך המשותף."
+            return "לא הצלחתי לפתוח את האתר במסך המשותף כרגע."
+        return "איזה אתר לפתוח?"
 
     # A request for the shared-browser link must always return the /browser viewer,
     # never DEAN's home page and never be delegated to the language model.
@@ -963,6 +1004,10 @@ def dean_instructions(current_message=""):
 - אם פרט מופיע בשיחה ישנה ורלוונטית, אל תגיד "אני לא זוכר" רק מפני שהוא לא נאמר עכשיו.
 - כשבניאל משתמש בקיצור כמו "זה", "אותו", "הקודם", "מה שאמרתי", "כמו קודם", או כשהכתבה קולית משבשת מילה, קודם חפש את המשמעות בהודעות האחרונות, בזיכרונות ובנושא הפעיל. אל תאבד הקשר רק בגלל ניסוח חלקי.
 - אם יש פירוש אחד ברור לפי ההקשר, תפעל לפיו בלי לשאול שאלה מיותרת. אם יש שני פירושים סבירים שיכולים לשנות את התוצאה משמעותית, שאל שאלה קצרה אחת.
+- המטרה היא להבין כוונה, לא להתאים משפט לתבנית. חבר בין המילים, ההודעות האחרונות, האתר הפתוח, הקישור האחרון והנושא הפעיל כדי להסיק למה בניאל מתכוון.
+- ביטויים כמו "האתר הזה", "אותו אתר", "זה ששלחתי", "העמוד הקודם", "תפתח לי שם" הם הפניות להקשר. נסה לפתור אותן מהשיחה ומהדפדפן לפני שאתה שואל.
+- אם בניאל אומר "תפתח לי את האתר הזה בדפדפן המשותף", אל תתייחס לזה כבקשה לקישור של הדפדפן. זו בקשת ביצוע: פתח פיזית את האתר במסך המשותף.
+- אם אין מספיק הקשר כדי לדעת איזה אתר, שאל רק "איזה אתר?" או שאלה קצרה דומה. אל תמציא יעד.
 - תיקון של בניאל גובר על ניסוח קודם. אם הוא אומר "לא, התכוונתי ל..." עדכן את ההבנה להמשך השיחה ואל תחזור לטעות הישנה.
 - אל תחליף מותג, דגם, סכום, תאריך, אדם או יעד במשהו דומה רק כי זיהוי הקול היה לא מושלם. כשיש ספק קטן, השתמש בהקשר; כשיש ספק מהותי, אמת לפני ביצוע.
 - אם חסר מידע מהותי, שאל. אל תמציא עובדות על בניאל.
@@ -1077,7 +1122,7 @@ def ask_dean(message):
     tools = [{
         "type": "function",
         "name": "browser_run",
-        "description": "DEAN's real persistent shared browser. Use it only for an explicit user-requested website/browser action. The tool being available means the browser capability is connected; never say the browser does not exist merely because you have not invoked it yet. Never claim success unless the returned result confirms it.",
+        "description": "DEAN's real persistent shared browser. Use it for any user intent that clearly means doing something on a website or the shared browser, even when phrased naturally or contextually (for example: 'open this site there', 'same page', 'go back to that site'). Resolve references from recent context when possible. Never claim success unless the returned result confirms it.",
         "parameters": {
             "type": "object",
             "properties": {
