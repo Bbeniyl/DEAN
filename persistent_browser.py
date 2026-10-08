@@ -285,21 +285,29 @@ def navigate(url):
         expected_host = urlparse(expected).netloc.lower() if expected.startswith(("http://","https://")) else ""
         deadline = time.time() + 10
         actual = ""
+        matched = False
         while time.time() < deadline:
             actual = str(evaluate_js("location.href") or "")
             if expected.startswith("data:") and actual.startswith("data:"):
+                matched = True
                 break
             if expected_host:
                 actual_host = urlparse(actual).netloc.lower() if actual.startswith(("http://","https://")) else ""
-                if actual_host == expected_host or actual_host.endswith("." + expected_host) or expected_host.endswith("." + actual_host):
+                if actual_host and (
+                    actual_host == expected_host
+                    or actual_host.endswith("." + expected_host)
+                    or expected_host.endswith("." + actual_host)
+                ):
+                    matched = True
                     break
             elif actual == expected:
+                matched = True
                 break
             time.sleep(0.25)
-        if not actual:
-            _set(last_error="navigation_not_verified")
+        if not matched:
+            _set(current_url=actual or _state.get("current_url",""), last_error="navigation_not_verified")
             return False
-        _set(current_url=actual)
+        _set(current_url=actual, last_error="")
         return True
     except Exception as exc:
         _set(connected=False, viewer_ready=False, last_error=f"{type(exc).__name__}: {str(exc)[:180]}")
