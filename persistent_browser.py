@@ -131,13 +131,13 @@ def _runner():
         try:
             with _lock:
                 _latest_frame = None
-            _set(started=True, connected=False, viewer_ready=False, target_id=None, current_url="about:blank", frame_at=0, last_error="")
+            _set(started=True, connected=False, viewer_ready=False, target_id=None, current_url="https://dean-agent-5y18.onrender.com/browser-start", frame_at=0, last_error="")
             ws = websocket.create_connection(_ws_url(), timeout=30, origin=BASE_URL)
             ws.settimeout(None)
             _ws = ws
             _set(connected=True, last_error="")
 
-            create_id = _send("Target.createTarget", {"url": "about:blank"})
+            create_id = _send("Target.createTarget", {"url": "https://dean-agent-5y18.onrender.com/browser-start"})
             created = _wait_for_response(ws, create_id)
             target_id = ((created.get("result") or {}).get("targetId"))
             if not target_id:
