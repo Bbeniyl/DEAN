@@ -169,7 +169,7 @@ def init_db():
 
 init_db()
 
-CURRENT_RELEASE_NOTES = """העיגול של DEAN במסך המשותף שודרג לשיחה אמיתית: מונה שניות בזמן חשיבה/ביצוע, הכתבה קולית, ותשובה קולית אוטומטית כשמדברים אליו מהמיקרופון."""
+CURRENT_RELEASE_NOTES = """DEAN מבדיל עכשיו בין תקלה בדפדפן לבין אתר חיצוני שלא מגיב. אם המסך המשותף מחובר והאתר עצמו נתקע, הוא לא יטען בטעות שהחיבור המשותף נפל."""
 def register_release():
     try:
         with get_db() as con:
@@ -1087,7 +1087,17 @@ def run_browser_agent(url, goal):
         if url_text and open_site_intent:
             ok = persistent_browser_navigate(url_text)
             st = persistent_browser_status()
-            return {"ok": bool(ok), "action": "navigate", "url": url_text, "current_url": st.get("current_url","")}
+            if ok:
+                return {"ok": True, "action": "navigate", "url": url_text, "current_url": st.get("current_url","")}
+            return {
+                "ok": False,
+                "action": "navigate",
+                "error": "target_site_unreachable",
+                "url": url_text,
+                "browser_connected": bool(st.get("connected") and st.get("viewer_ready")),
+                "current_url": st.get("current_url",""),
+                "detail": st.get("last_error","")
+            }
 
         click_match = re.search(r"(?:לחץ|תלחץ|פתח|תפתח)(?:\s+לי)?(?:\s+על)?\s+[\"']?(.+?)[\"']?$", goal_text, re.I)
         if click_match and not re.search(r"(?:חפש|תחפש|תמצא)", goal_text, re.I):
@@ -1101,7 +1111,17 @@ def run_browser_agent(url, goal):
         if url_text:
             ok = persistent_browser_navigate(url_text)
             st = persistent_browser_status()
-            return {"ok": bool(ok), "action": "navigate", "url": url_text, "current_url": st.get("current_url","")}
+            if ok:
+                return {"ok": True, "action": "navigate", "url": url_text, "current_url": st.get("current_url","")}
+            return {
+                "ok": False,
+                "action": "navigate",
+                "error": "target_site_unreachable",
+                "url": url_text,
+                "browser_connected": bool(st.get("connected") and st.get("viewer_ready")),
+                "current_url": st.get("current_url",""),
+                "detail": st.get("last_error","")
+            }
 
         return {"ok": False, "error": "missing_browser_action"}
     except Exception as e:
@@ -1911,7 +1931,7 @@ async function sendDeanMessage(text,{speakReply=false}={}){
     setTimeout(refresh,900);
     if(speakReply) speakChatReply(answer);
   }catch(e){
-    addMsg("assistant","שגיאה בחיבור לדין");
+    addMsg("assistant","לא הצלחתי להשלים את הפעולה כרגע.");
     failChatWork();
   }
 }
