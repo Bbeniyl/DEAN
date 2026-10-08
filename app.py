@@ -6,7 +6,8 @@ import time
 import threading
 import requests
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 from functools import wraps
 from urllib.parse import urlencode, quote_plus, quote
 
@@ -130,6 +131,13 @@ def init_db():
                 id BIGSERIAL PRIMARY KEY, content TEXT NOT NULL UNIQUE, created TEXT NOT NULL)""")
             con.execute("""CREATE TABLE IF NOT EXISTS tasks(
                 id BIGSERIAL PRIMARY KEY, content TEXT NOT NULL, done INTEGER NOT NULL DEFAULT 0, created TEXT NOT NULL)""")
+            con.execute("""CREATE TABLE IF NOT EXISTS reminders(
+                id BIGSERIAL PRIMARY KEY,
+                content TEXT NOT NULL,
+                due_at TEXT,
+                done INTEGER NOT NULL DEFAULT 0,
+                notified INTEGER NOT NULL DEFAULT 0,
+                created TEXT NOT NULL)""")
             con.execute("""CREATE TABLE IF NOT EXISTS login_attempts(
                 id BIGSERIAL PRIMARY KEY, ip TEXT NOT NULL, ok INTEGER NOT NULL, created DOUBLE PRECISION NOT NULL)""")
             con.execute("""CREATE TABLE IF NOT EXISTS action_requests(
@@ -144,6 +152,13 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT, content TEXT NOT NULL UNIQUE, created TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS tasks(
                 id INTEGER PRIMARY KEY AUTOINCREMENT, content TEXT NOT NULL, done INTEGER NOT NULL DEFAULT 0, created TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS reminders(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                content TEXT NOT NULL,
+                due_at TEXT,
+                done INTEGER NOT NULL DEFAULT 0,
+                notified INTEGER NOT NULL DEFAULT 0,
+                created TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS login_attempts(
                 id INTEGER PRIMARY KEY AUTOINCREMENT, ip TEXT NOT NULL, ok INTEGER NOT NULL, created REAL NOT NULL);
             CREATE TABLE IF NOT EXISTS action_requests(
@@ -155,7 +170,7 @@ def init_db():
 
 init_db()
 
-CURRENT_RELEASE_NOTES = """זיכרון קבוע ב-Postgres וחיפוש הקשר; למידה אוטומטית ברקע; משימות ואישורים; קול ושיחה חיה; חיווי עבודה; כלי גלישה אמיתי דרך TinyFish עם בדיקת חיבור ב-health."""
+CURRENT_RELEASE_NOTES = """מדריך חיים פעיל; שיעורים קטנים והכוונה מעשית; תזכורות עם זמן; משימות וזיכרון קבוע; דפדפן משותף עם שליטה מהאייפד וחיפוש ללא CAPTCHA."""
 def register_release():
     try:
         with get_db() as con:
@@ -327,6 +342,93 @@ def add_task(content):
             (clean[:1000], utc_now())
         )
     return True
+
+def _israel_now():
+    return datetime.now(ZoneInfo("Asia/Jerusalem"))
+
+def _to_utc_iso(dt):
+    return dt.astimezone(timezone.utc).isoformat(timespec="seconds")
+
+def parse_reminder_request(raw_text):
+    """Parse common Hebrew reminder phrasing. Returns (content, due_at_iso_or_none)."""
+    text = " ".join(str(raw_text or "").split()).strip()
+    if not text:
+        return "", None
+    now = _israel_now()
+    due = None
+
+    # בעוד X דקות/שעות
+    m = re.search(r"בעוד\s+(\d+)\s*(דקות?|שעות?)", text)
+    if m:
+        amount = int(m.group(1))
+        due = now + (timedelta(minutes=amount) if "דק" in m.group(2) else timedelta(hours=amount))
+        text = (text[:m.start()] + text[m.end():]).strip(" ,-")
+
+    # היום/מחר בשעה HH[:MM]
+    if due is None:
+        m = re.search(r"(היום|מחר)(?:\s+(?:ב|בשעה|ב-))?\s*(\d{1,2})(?::(\d{2}))?", text)
+        if m:
+            day_add = 1 if m.group(1) == "מחר" else 0
+            hh = max(0, min(23, int(m.group(2))))
+            mm = max(0, min(59, int(m.group(3) or 0)))
+            due = (now + timedelta(days=day_add)).replace(hour=hh, minute=mm, second=0, microsecond=0)
+            if day_add == 0 and due <= now:
+                due += timedelta(days=1)
+            text = (text[:m.start()] + text[m.end():]).strip(" ,-")
+
+    # בשעה HH:MM / ב-HH:MM
+    if due is None:
+        m = re.search(r"(?:בשעה|ב-)\s*(\d{1,2}):(\d{2})", text)
+        if m:
+            hh = max(0, min(23, int(m.group(1))))
+            mm = max(0, min(59, int(m.group(2))))
+            due = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+            if due <= now:
+                due += timedelta(days=1)
+            text = (text[:m.start()] + text[m.end():]).strip(" ,-")
+
+    text = re.sub(r"^(?:תזכיר\s+לי|תזכור\s+להזכיר\s+לי)\s*", "", text).strip()
+    return text, (_to_utc_iso(due) if due else None)
+
+def add_reminder(content, due_at=None):
+    clean = " ".join(str(content or "").split()).strip()
+    if not clean:
+        return None
+    with get_db() as con:
+        row = con.execute(
+            db_sql("INSERT INTO reminders(content,due_at,done,notified,created) VALUES(?,?,0,0,?) RETURNING id"),
+            (clean[:1200], due_at, utc_now())
+        ).fetchone()
+    return int(row["id"]) if row else None
+
+def list_reminders(limit=100, include_done=False):
+    with get_db() as con:
+        if include_done:
+            rows = con.execute(db_sql("SELECT id,content,due_at,done,notified,created FROM reminders ORDER BY done ASC, id DESC LIMIT ?"), (limit,)).fetchall()
+        else:
+            rows = con.execute(db_sql("SELECT id,content,due_at,done,notified,created FROM reminders WHERE done=0 ORDER BY id DESC LIMIT ?"), (limit,)).fetchall()
+    return [dict(r) for r in rows]
+
+def complete_reminder(reminder_id):
+    with get_db() as con:
+        con.execute(db_sql("UPDATE reminders SET done=1 WHERE id=?"), (int(reminder_id),))
+
+def due_reminders(limit=10):
+    now_iso = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    with get_db() as con:
+        rows = con.execute(
+            db_sql("SELECT id,content,due_at FROM reminders WHERE done=0 AND notified=0 AND due_at IS NOT NULL AND due_at<=? ORDER BY due_at ASC LIMIT ?"),
+            (now_iso, limit)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+def mark_reminders_notified(ids):
+    ids = [int(x) for x in ids if str(x).isdigit()]
+    if not ids:
+        return
+    with get_db() as con:
+        for rid in ids:
+            con.execute(db_sql("UPDATE reminders SET notified=1 WHERE id=?"), (rid,))
 
 def list_tasks(limit=100):
     with get_db() as con:
@@ -726,7 +828,41 @@ def maybe_handle_local_command(message):
             f"{'✅' if t['done'] else '⬜'} {t['id']}. {t['content']}" for t in tasks
         )
 
-    approval_prefixes = ["בקשת אישור ", "צריך אישור "]
+    if text.startswith("תזכיר לי ") or text.startswith("תזכור להזכיר לי "):
+        content, due_at = parse_reminder_request(text)
+        if content:
+            rid = add_reminder(content, due_at)
+            if due_at:
+                try:
+                    when = datetime.fromisoformat(due_at).astimezone(ZoneInfo("Asia/Jerusalem")).strftime("%d/%m %H:%M")
+                    return f"קבעתי תזכורת {rid}: {content} — {when}"
+                except Exception:
+                    return f"קבעתי תזכורת {rid}: {content}"
+            return f"שמרתי תזכורת {rid}: {content}. תגיד לי גם מתי להזכיר אם אתה רוצה שעה מדויקת."
+
+    if text in {"תזכורות", "מה התזכורות שלי", "/reminders"}:
+        rs = list_reminders(50)
+        if not rs:
+            return "אין כרגע תזכורות פתוחות."
+        lines=[]
+        for r in rs:
+            when=""
+            if r.get("due_at"):
+                try:
+                    when=" — " + datetime.fromisoformat(r["due_at"]).astimezone(ZoneInfo("Asia/Jerusalem")).strftime("%d/%m %H:%M")
+                except Exception:
+                    pass
+            lines.append(f"{r['id']}. {r['content']}{when}")
+        return "התזכורות שלך:\n" + "\n".join(lines)
+
+    for prefix in ["סיימתי תזכורת ", "סמן תזכורת "]:
+        if text.startswith(prefix):
+            raw=text[len(prefix):].strip()
+            if raw.isdigit():
+                complete_reminder(int(raw))
+                return f"סימנתי את תזכורת {raw} כבוצעה."
+
+        approval_prefixes = ["בקשת אישור ", "צריך אישור "]
     for prefix in approval_prefixes:
         if text.startswith(prefix):
             content = text[len(prefix):].strip()
@@ -746,6 +882,7 @@ def dean_instructions(current_message=""):
     memories = relevant_memories(current_message, 30)
     tasks = list_tasks(80)
     approvals = [r for r in list_action_requests(50) if r["status"] == "pending"]
+    reminders = list_reminders(80)
 
     memory_text = "\\n".join(f"- {m['content']}" for m in memories) or "- אין עדיין"
     task_text = "\\n".join(
@@ -753,6 +890,10 @@ def dean_instructions(current_message=""):
     ) or "- אין כרגע"
     approval_text = "\\n".join(
         f"- {r['id']}: {r['action']}" for r in approvals
+    ) or "- אין כרגע"
+    reminder_text = "\\n".join(
+        f"- {r['id']}: {r['content']}" + (f" | זמן: {r['due_at']}" if r.get("due_at") else "")
+        for r in reminders
     ) or "- אין כרגע"
 
     return f"""
@@ -768,6 +909,12 @@ def dean_instructions(current_message=""):
 - למד מדפוסים שחוזרים בשיחות. אם אתה מזהה משהו חשוב שבניאל מפספס, מותר ואף רצוי להצביע עליו ביוזמתך.
 - המטרה היא לחזק את שיקול הדעת והעצמאות של בניאל, לא ליצור תלות בך.
 - אתה גם עוזר ביצועי: כאשר מחוברים אליך כלים אמיתיים, השתמש בהם כדי לבצע משימות במסגרת ההרשאות והאישורים.
+- מצב מורה לחיים: אל תחכה רק לשאלות. כשיש הזדמנות אמיתית, עזור לבניאל לראות איפה הוא עומד, מה מעכב אותו ומה הצעד הבא הכי קטן ומועיל.
+- למד אותו משהו שימושי אחד בכל פעם, בשפה פשוטה ובעברית, עם דוגמה מחיי היום-יום. עדיף שיעור קטן שהוא באמת יבצע מאשר הרצאה.
+- כשאתה מזהה טעות שחוזרת על עצמה, החלטה פזיזה, בזבוז זמן או כסף, דחיינות או פעולה שסותרת מטרה שלו — תגיד את זה ברור, בלי להטיף, ותציע חלופה מעשית.
+- הפוך מטרות גדולות לצעד הבא של היום. אל תעמיס עשר משימות; בחר את המהלך בעל ההשפעה הגבוהה ביותר.
+- בתחילת יום או כשבניאל שואל מה לעשות, בדוק משימות פתוחות, תזכורות והקשר קודם והצע סדר עדיפויות קצר.
+- אל תיצור תלות. המטרה היא שבניאל ילמד לקבל החלטות טובות יותר בעצמו.
 
 איך לדבר:
 - דבר בעברית מדוברת של יום-יום, כמו שיחה אמיתית בין שני אנשים שמכירים טוב. אל תישמע כמו AI, רובוט, מוקד שירות, מאמן, מטפל או מסמך רשמי.
@@ -816,6 +963,9 @@ def dean_instructions(current_message=""):
 
 פעולות שממתינות לאישור בניאל:
 {approval_text}
+
+תזכורות פתוחות:
+{reminder_text}
 
 כלל ביצוע:
 - לפני פעולה חיצונית רגישה, צור בקשת אישור ברורה ואל תטען שהפעולה בוצעה לפני שיש כלי אמיתי ותוצאה מאומתת.
@@ -1947,6 +2097,12 @@ def chat():
         return jsonify(
             error="DEAN לא הצליח להשלים את הבקשה כרגע."
         ), 502
+
+    due_now = due_reminders(10)
+    if due_now:
+        reminder_lines = [f"תזכורת: {r['content']}" for r in due_now]
+        answer = (answer.rstrip() + "\n\n" + "\n".join(reminder_lines)).strip()
+        mark_reminders_notified([r["id"] for r in due_now])
 
     save_message("user", message)
     save_message("assistant", answer)
