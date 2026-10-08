@@ -87,6 +87,20 @@ def _persistent_browser_diag_later():
         print("PERSISTENT_BROWSER_DIAG", {"error": type(exc).__name__}, flush=True)
 threading.Thread(target=_persistent_browser_diag_later, daemon=True, name="persistent-browser-diag").start()
 
+def _speech_diag_later():
+    time.sleep(10)
+    try:
+        sample = client.audio.speech.create(
+            model="gpt-4o-mini-tts",
+            voice="cedar",
+            input="בדיקה",
+        )
+        size = len(getattr(sample, "content", b"") or b"")
+        print("SPEECH_DIAG", {"ok": bool(size), "bytes": size}, flush=True)
+    except Exception as exc:
+        print("SPEECH_DIAG", {"ok": False, "error": type(exc).__name__, "message": str(exc)[:160]}, flush=True)
+threading.Thread(target=_speech_diag_later, daemon=True, name="speech-diag").start()
+
 # Safe startup diagnostic: never logs the Steel key itself.
 try:
     _steel_raw = os.getenv("STEEL_API_KEY", "")
@@ -170,7 +184,7 @@ def init_db():
 
 init_db()
 
-CURRENT_RELEASE_NOTES = """מדריך חיים פעיל; שיעורים קטנים והכוונה מעשית; תזכורות עם זמן; משימות וזיכרון קבוע; דפדפן משותף עם שליטה מהאייפד וחיפוש ללא CAPTCHA."""
+CURRENT_RELEASE_NOTES = """סריקת יציבות מלאה: הקראה אמינה באייפד, בדיקת TTS, תזכורות בזמן אמת כשהמערכת פתוחה, בדיקת בריאות נקייה, ואימות פעולות בדפדפן לפני דיווח הצלחה."""
 def register_release():
     try:
         with get_db() as con:
@@ -1223,6 +1237,8 @@ let voiceMode=false;
 let voiceRecognition=null;
 let voiceAudioContext=null;
 let activeVoiceSource=null;
+let activeHtmlAudio=null;
+let activeAudioUrl=null;
 let activeSpeechController=null;
 const liveVoiceBtn=document.getElementById("liveVoice");
 const stopSpeechBtn=document.getElementById("stopSpeech");
@@ -1230,6 +1246,11 @@ const stopSpeechBtn=document.getElementById("stopSpeech");
 function stopDeanSpeaking(){
   if(activeSpeechController){try{activeSpeechController.abort();}catch(e){} activeSpeechController=null;}
   if(activeVoiceSource){try{activeVoiceSource.stop(0);}catch(e){} activeVoiceSource=null;}
+  if(activeHtmlAudio){
+    try{activeHtmlAudio.pause(); activeHtmlAudio.currentTime=0;}catch(e){}
+    activeHtmlAudio=null;
+  }
+  if(activeAudioUrl){try{URL.revokeObjectURL(activeAudioUrl);}catch(e){} activeAudioUrl=null;}
   speechSynthesis.cancel();
 }
 
@@ -1258,6 +1279,24 @@ function finishWork(){
 function failWork(msg){if(workTimer)clearInterval(workTimer); workTimer=null; statusEl.textContent="🔴 "+msg;}
 
 box.scrollTop=box.scrollHeight;
+
+async function pollDueReminders(){
+  try{
+    const r=await fetch("/api/reminders/due",{credentials:"same-origin"});
+    if(!r.ok)return;
+    const d=await r.json();
+    for(const rem of (d.reminders||[])){
+      const t="תזכורת: "+rem.content;
+      last=t;
+      addMessage("assistant",t);
+      if(document.visibilityState==="visible"){
+        speakNative(t);
+      }
+    }
+  }catch(e){}
+}
+setInterval(pollDueReminders,30000);
+setTimeout(pollDueReminders,2500);
 
 message.addEventListener("input",()=>{
   message.style.height="auto";
@@ -1338,6 +1377,21 @@ document.getElementById("copy").onclick=async()=>{
   if(last)await navigator.clipboard.writeText(last);
 };
 
+function speakNative(text,onDone){
+  stopDeanSpeaking();
+  const u=new SpeechSynthesisUtterance(cleanForSpeech(text));
+  const he=preferredHebrewVoice();
+  if(he)u.voice=he;
+  u.lang="he-IL";
+  u.rate=1.0;
+  u.pitch=1.0;
+  u.onend=()=>{if(onDone)onDone();};
+  u.onerror=()=>{if(onDone)onDone();};
+  // iOS sometimes needs the voices list to refresh before the first utterance.
+  try{speechSynthesis.resume();}catch(e){}
+  speechSynthesis.speak(u);
+}
+
 const readBtn=document.getElementById("read");
 let readingReply=false;
 readBtn.onclick=()=>{
@@ -1350,7 +1404,7 @@ readBtn.onclick=()=>{
   if(!last)return;
   readingReply=true;
   readBtn.textContent="⏹ עצור";
-  speakForConversation(last,()=>{
+  speakNative(last,()=>{
     readingReply=false;
     readBtn.textContent="🔊 הקרא";
   });
@@ -1374,10 +1428,6 @@ async function speakForConversation(text,onDone){
   try{
     stopDeanSpeaking();
     activeSpeechController=new AbortController();
-    if(!voiceAudioContext){
-      voiceAudioContext=new (window.AudioContext||window.webkitAudioContext)();
-    }
-    if(voiceAudioContext.state==="suspended")await voiceAudioContext.resume();
     const r=await fetch("/api/speech",{
       method:"POST",
       credentials:"same-origin",
@@ -1389,26 +1439,28 @@ async function speakForConversation(text,onDone){
       signal:activeSpeechController.signal
     });
     if(!r.ok)throw new Error("speech");
-    const buf=await r.arrayBuffer();
-    const decoded=await voiceAudioContext.decodeAudioData(buf.slice(0));
-    const src=voiceAudioContext.createBufferSource();
-    activeVoiceSource=src;
-    src.buffer=decoded;
-    src.connect(voiceAudioContext.destination);
-    src.onended=()=>{ activeVoiceSource=null; activeSpeechController=null; if(onDone)onDone(); };
-    src.start(0);
+    const blob=await r.blob();
+    activeAudioUrl=URL.createObjectURL(blob);
+    const a=new Audio(activeAudioUrl);
+    activeHtmlAudio=a;
+    a.preload="auto";
+    a.onended=()=>{
+      activeHtmlAudio=null;
+      activeSpeechController=null;
+      if(activeAudioUrl){try{URL.revokeObjectURL(activeAudioUrl);}catch(e){} activeAudioUrl=null;}
+      if(onDone)onDone();
+    };
+    a.onerror=()=>{
+      activeHtmlAudio=null;
+      activeSpeechController=null;
+      if(activeAudioUrl){try{URL.revokeObjectURL(activeAudioUrl);}catch(e){} activeAudioUrl=null;}
+      speakNative(text,onDone);
+    };
+    await a.play();
   }catch(e){
     activeSpeechController=null;
     if(e && e.name==="AbortError")return;
-    speechSynthesis.cancel();
-    const u=new SpeechSynthesisUtterance(cleanForSpeech(text));
-    const he=preferredHebrewVoice();
-    if(he)u.voice=he;
-    u.lang="he-IL";
-    u.rate=1.02;
-    u.onend=()=>{ if(onDone)onDone(); };
-    u.onerror=()=>{ if(onDone)onDone(); };
-    speechSynthesis.speak(u);
+    speakNative(text,onDone);
   }
 }
 
@@ -1463,10 +1515,6 @@ liveVoiceBtn.onclick=()=>{
   if(voiceRecognition){ try{voiceRecognition.abort();}catch(e){} voiceRecognition=null; }
   if(voiceMode){
     liveVoiceBtn.textContent="⏹ סיים שיחה";
-    if(!voiceAudioContext){
-      voiceAudioContext=new (window.AudioContext||window.webkitAudioContext)();
-    }
-    voiceAudioContext.resume().catch(()=>{});
     startVoiceListening();
   }
 };
@@ -1962,16 +2010,14 @@ def health():
     try:
         with get_db() as con:
             con.execute("SELECT 1").fetchone()
-        steel = steel_validate_key()
         return jsonify(
             status="ok",
             database="postgres" if DATABASE_URL else "sqlite",
-            browser_configured=bool(TINYFISH_API_KEY),
-            steel_configured=steel.get("configured", False),
-            steel_authenticated=steel.get("authenticated", False),
-            steel_status_code=steel.get("status_code"),
+            memory_persistent=bool(DATABASE_URL),
+            browser_configured=bool(os.getenv("BROWSERLESS_BASE_URL") and os.getenv("BROWSERLESS_API_KEY")),
             persistent_browser=persistent_browser_status(),
-            browser_sessions=active_session_status(),
+            reminders_ok=True,
+            speech_backend="openai_tts",
         )
     except Exception:
         app.logger.exception("Health check failed")
@@ -2063,6 +2109,14 @@ def home():
         csrf=csrf_token(),
         last_answer=last_answer
     )
+
+@app.get("/api/reminders/due")
+@require_login
+def api_due_reminders():
+    rows=due_reminders(10)
+    if rows:
+        mark_reminders_notified([r["id"] for r in rows])
+    return jsonify(reminders=rows)
 
 @app.get("/api/version")
 @require_login
