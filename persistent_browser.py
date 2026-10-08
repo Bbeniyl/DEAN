@@ -163,6 +163,7 @@ def _runner():
                 "width": 1024, "height": 700, "deviceScaleFactor": 1, "mobile": False
             }, session_id)
             _send("Page.enable", {}, session_id)
+            ws.settimeout(2.0)
             _set(viewer_ready=False)
 
             # Capture the real shared page repeatedly. This is more reliable on
@@ -176,7 +177,10 @@ def _runner():
                 }, session_id)
                 deadline = time.time() + 12
                 while time.time() < deadline:
-                    raw = ws.recv()
+                    try:
+                        raw = ws.recv()
+                    except websocket.WebSocketTimeoutException:
+                        continue
                     if not raw:
                         raise RuntimeError("browser websocket closed")
                     try:
@@ -204,6 +208,8 @@ def _runner():
                             except Exception:
                                 pass
                         break
+                else:
+                    raise TimeoutError("screenshot response timeout")
                 time.sleep(0.65)
         except Exception as exc:
             with _lock:
@@ -426,8 +432,14 @@ def press_key(key):
         return False
     key = str(key)
     try:
-        _send_wait("Input.dispatchKeyEvent", {"type":"keyDown","key":key}, _cdp_session_id, 8)
-        _send_wait("Input.dispatchKeyEvent", {"type":"keyUp","key":key}, _cdp_session_id, 8)
+        if key == "Enter":
+            params={"key":"Enter","code":"Enter","windowsVirtualKeyCode":13,"nativeVirtualKeyCode":13}
+            _send_wait("Input.dispatchKeyEvent", {"type":"rawKeyDown", **params}, _cdp_session_id, 8)
+            _send_wait("Input.dispatchKeyEvent", {"type":"char","text":"\r","unmodifiedText":"\r", **params}, _cdp_session_id, 8)
+            _send_wait("Input.dispatchKeyEvent", {"type":"keyUp", **params}, _cdp_session_id, 8)
+        else:
+            _send_wait("Input.dispatchKeyEvent", {"type":"keyDown","key":key}, _cdp_session_id, 8)
+            _send_wait("Input.dispatchKeyEvent", {"type":"keyUp","key":key}, _cdp_session_id, 8)
         return True
     except Exception as exc:
         _set(last_error=f"{type(exc).__name__}: {str(exc)[:180]}")
