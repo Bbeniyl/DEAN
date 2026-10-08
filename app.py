@@ -200,7 +200,7 @@ def require_login(fn):
         if not is_logged_in():
             if request.path.startswith("/api/"):
                 return jsonify(error="login_required"), 401
-            return redirect(url_for("login"))
+            return redirect(url_for("login", next=request.path))
         return fn(*args, **kwargs)
     return wrapper
 
@@ -1134,6 +1134,7 @@ button{width:100%;margin-top:12px;padding:16px;border:0;border-radius:16px;backg
 {% if error %}<p class="error">{{ error }}</p>{% endif %}
 <form method="post">
 <input type="hidden" name="csrf" value="{{ csrf }}">
+<input type="hidden" name="next" value="{{ next_path }}">
 <input type="password" name="password" placeholder="סיסמת DEAN" autocomplete="current-password" required>
 <button>כניסה מאובטחת</button>
 </form>
@@ -2024,12 +2025,16 @@ def health():
 
 @app.get("/login")
 def login():
+    next_path = request.args.get("next", "")
+    if not (next_path.startswith("/") and not next_path.startswith("//")):
+        next_path = url_for("home")
     if is_logged_in():
-        return redirect(url_for("home"))
+        return redirect(next_path)
     return render_template_string(
         LOGIN_HTML,
         csrf=csrf_token(),
-        error=None
+        error=None,
+        next_path=next_path
     )
 
 @app.post("/login")
@@ -2058,8 +2063,13 @@ def login_post():
         return render_template_string(
             LOGIN_HTML,
             csrf=csrf_token(),
-            error="יותר מדי ניסיונות. נסה שוב בעוד כמה דקות."
+            error="יותר מדי ניסיונות. נסה שוב בעוד כמה דקות.",
+            next_path=next_path
         ), 429
+
+    next_path = request.form.get("next", "")
+    if not (next_path.startswith("/") and not next_path.startswith("//")):
+        next_path = url_for("home")
 
     password = request.form.get("password", "")
     ok = secrets.compare_digest(password, DEAN_PASSWORD)
@@ -2074,7 +2084,8 @@ def login_post():
         return render_template_string(
             LOGIN_HTML,
             csrf=csrf_token(),
-            error="סיסמה שגויה"
+            error="סיסמה שגויה",
+            next_path=next_path
         ), 401
 
     session.clear()
@@ -2082,7 +2093,7 @@ def login_post():
     session["authenticated"] = True
     session["csrf"] = secrets.token_urlsafe(32)
 
-    return redirect(url_for("home"))
+    return redirect(next_path)
 
 @app.get("/")
 @require_login
