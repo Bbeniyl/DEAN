@@ -306,6 +306,25 @@ def navigate(url):
         return False
 
 
+def reload_page():
+    if not _cdp_session_id and not wait_until_ready(20):
+        return False
+    try:
+        _send_wait("Page.reload", {"ignoreCache": False}, _cdp_session_id, 10)
+        deadline = time.time() + 8
+        while time.time() < deadline:
+            actual = str(evaluate_js("location.href") or "")
+            if actual:
+                _set(current_url=actual)
+                return True
+            time.sleep(0.2)
+        _set(last_error="reload_not_verified")
+        return False
+    except Exception as exc:
+        _set(last_error=f"{type(exc).__name__}: {str(exc)[:180]}")
+        return False
+
+
 def click(x, y):
     if not _cdp_session_id and not wait_until_ready(20):
         return False
