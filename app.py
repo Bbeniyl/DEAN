@@ -1599,7 +1599,7 @@ button{font-size:15px;padding:10px 14px;border:1px solid rgba(255,255,255,.10);b
 </head>
 <body>
 <div class="topbar">
-<input id="url" value="https://www.google.com" autocomplete="off" autocapitalize="none">
+<input id="url" value="about:blank" autocomplete="off" autocapitalize="none">
 <button id="go">פתח</button>
 <button id="reload">רענן</button>
 </div>
@@ -1642,8 +1642,12 @@ async function pollStatus(){
     const r=await fetch("/api/browser/status",{credentials:"same-origin"});
     const d=await r.json();
     if(d.viewer_ready){status.textContent="DEAN Browser · מחובר";}
-    else if(d.connected){status.textContent="הדפדפן מחובר, מחכה לתמונה...";}
+    else if(d.connected){status.textContent="הדפדפן מחובר, מחכה לתמונה חדשה...";}
     else{status.textContent="הדפדפן מתחבר...";}
+    const urlBox=document.getElementById("url");
+    if(d.current_url && document.activeElement!==urlBox){
+      urlBox.value=d.current_url;
+    }
   }catch(e){ status.textContent="הדפדפן מנסה להתחבר..."; }
 }
 function refresh(){ img.src="/api/browser/frame?t="+Date.now(); }
