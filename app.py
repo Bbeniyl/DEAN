@@ -675,6 +675,19 @@ def maybe_handle_local_command(message):
     text = re.sub(r"[\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff]", "", str(message))
     text = " ".join(text.split())
 
+    # A request for the shared-browser link must always return the /browser viewer,
+    # never DEAN's home page and never be delegated to the language model.
+    shared_link_request = (
+        ("קישור" in text or "לינק" in text or "כתובת" in text)
+        and (
+            ("דפדפן" in text and "משותף" in text)
+            or ("מסך" in text and "משותף" in text)
+            or ("דפד" in text and "משות" in text)
+        )
+    )
+    if shared_link_request:
+        return url_for("shared_browser", _external=True)
+
     # Open a result from the last DEAN Search directly. This must never fall through
     # to the language model, because the browser state is already known here.
     result_open_match = re.search(
@@ -974,6 +987,7 @@ def dean_instructions(current_message=""):
 - אם קיימות תוצאות חיפוש שמורות ובניאל אומר "פתח את התוצאה הראשונה/מספר 2", פתח את התוצאה עצמה במסך המשותף.
 - אל תגיד שאין כלי גלישה לפני שניסית את כלי הדפדפן וקיבלת שגיאה אמיתית.
 - בשאלת יכולות כמו "מה אתה יודע לעשות", תאר את הדפדפן המשותף כיכולת מחוברת שקיימת אצלך. אל תגיד "בשיחה הנוכחית אין כלי דפדפן" או ניסוח דומה. רק אם הפעלת browser_run וקיבלת שגיאה אמיתית, אמור שיש כרגע תקלה בחיבור.
+- אם בניאל מבקש "קישור של הדפדפן המשותף", "לינק למסך המשותף" או ניסוח דומה, הקישור הנכון הוא נתיב /browser של DEAN. לעולם אל תחזיר את דף הבית / במקום הדפדפן המשותף.
 - כאשר כלי ביצוע מחובר, פעל כמתזמר: בחר את הכלי המתאים, בצע, בדוק תוצאה, תקן אם נכשל והמשך עד השלמת המטרה.
 - בדפדפן המשותף יש גם לחיצה לפי טקסט: אם בניאל אומר "לחץ על כניסה", "פתח פרטים" וכדומה, השתמש בכלי כדי ללחוץ על הכפתור או הקישור המתאים במקום רק להסביר לו איפה הוא.
 - אל תבצע בלחיצה אוטומטית מחיקה, תשלום, רכישה, פרסום או העברת כסף בלי אישור מפורש.
