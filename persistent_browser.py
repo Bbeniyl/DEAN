@@ -43,7 +43,14 @@ def _ws_url():
 
 def status():
     with _lock:
-        return dict(_state)
+        out = dict(_state)
+        frame_at = float(out.get("frame_at") or 0)
+        frame_age = (time.time() - frame_at) if frame_at else None
+        out["frame_age"] = round(frame_age, 2) if frame_age is not None else None
+        if frame_age is None or frame_age > 4.0:
+            out["viewer_ready"] = False
+        out["frame_fresh"] = bool(frame_age is not None and frame_age <= 4.0)
+        return out
 
 
 def _set(**kwargs):
@@ -177,6 +184,15 @@ def _runner():
                     except Exception:
                         continue
                     _dispatch_pending(event)
+                    method = event.get("method")
+                    params = event.get("params") or {}
+                    if method == "Page.frameNavigated":
+                        frame_info = params.get("frame") or {}
+                        if not frame_info.get("parentId") and frame_info.get("url"):
+                            _set(current_url=str(frame_info.get("url")))
+                    elif method == "Page.navigatedWithinDocument":
+                        if params.get("url"):
+                            _set(current_url=str(params.get("url")))
                     if event.get("id") == shot_id:
                         data = ((event.get("result") or {}).get("data"))
                         if data:
@@ -243,7 +259,11 @@ def ensure_started():
 
 def latest_frame():
     with _lock:
-        return _latest_frame
+        frame = _latest_frame
+        frame_at = float(_state.get("frame_at") or 0)
+    if not frame or not frame_at or (time.time() - frame_at) > 4.0:
+        return None
+    return frame
 
 
 def navigate(url):
