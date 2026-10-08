@@ -244,6 +244,55 @@ def scroll_by(delta_x=0, delta_y=0, x=512, y=350):
         return False
 
 
+def evaluate_js(expression):
+    """Execute a small JavaScript action in the current shared page."""
+    if not _cdp_session_id and not wait_until_ready(30):
+        return False
+    try:
+        _send("Runtime.evaluate", {
+            "expression": str(expression),
+            "userGesture": True,
+            "awaitPromise": False,
+            "returnByValue": False,
+        }, _cdp_session_id)
+        return True
+    except Exception:
+        _set(connected=False, viewer_ready=False)
+        return False
+
+
+def click_text(text):
+    """Click a visible element whose text/label contains the requested phrase."""
+    needle = str(text or "").strip()
+    if not needle:
+        return False
+    js_needle = json.dumps(needle)
+    expression = f"""
+(() => {{
+  const needle = {js_needle}.trim().toLowerCase();
+  const els = Array.from(document.querySelectorAll(
+    'a,button,[role="button"],input[type="button"],input[type="submit"],summary,label'
+  ));
+  const visible = el => {{
+    const r = el.getBoundingClientRect();
+    const s = getComputedStyle(el);
+    return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none';
+  }};
+  const txt = el => (
+    el.innerText || el.textContent || el.value ||
+    el.getAttribute('aria-label') || el.getAttribute('title') || ''
+  ).trim().toLowerCase();
+  let el = els.find(e => visible(e) && txt(e) === needle);
+  if (!el) el = els.find(e => visible(e) && txt(e).includes(needle));
+  if (!el) return false;
+  el.scrollIntoView({{block:'center', inline:'center'}});
+  el.click();
+  return true;
+}})()
+"""
+    return evaluate_js(expression)
+
+
 def type_text(text):
     if not _cdp_session_id and not wait_until_ready(20):
         return False
