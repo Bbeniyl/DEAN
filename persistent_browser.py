@@ -310,7 +310,7 @@ def navigate(url):
         _set(current_url=actual, last_error="")
         return True
     except Exception as exc:
-        _set(connected=False, viewer_ready=False, last_error=f"{type(exc).__name__}: {str(exc)[:180]}")
+        _set(last_error=f"{type(exc).__name__}: {str(exc)[:180]}")
         return False
 
 
