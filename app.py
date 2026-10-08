@@ -16,8 +16,7 @@ from flask import (
     jsonify, render_template_string, abort, Response
 )
 from openai import OpenAI
-from steel_client import configured as steel_configured, create_session as steel_create_session, validate_key as steel_validate_key, active_session_status
-from persistent_browser import ensure_started as ensure_persistent_browser, status as persistent_browser_status, latest_frame as persistent_browser_frame, navigate as persistent_browser_navigate, evaluate_js as persistent_browser_eval, click as persistent_browser_click, click_text as persistent_browser_click_text, scroll_by as persistent_browser_scroll, type_text as persistent_browser_type, press_key as persistent_browser_key, start_keepalive as start_browser_keepalive, wait_until_ready as browser_wait_until_ready
+from persistent_browser import ensure_started as ensure_persistent_browser, status as persistent_browser_status, latest_frame as persistent_browser_frame, navigate as persistent_browser_navigate, evaluate_js as persistent_browser_eval, click as persistent_browser_click, click_text as persistent_browser_click_text, scroll_by as persistent_browser_scroll, type_text as persistent_browser_type, press_key as persistent_browser_key, reload_page as persistent_browser_reload, start_keepalive as start_browser_keepalive, wait_until_ready as browser_wait_until_ready
 
 app = Flask(__name__)
 # browser reconnect build marker
@@ -61,16 +60,6 @@ _last_search_lock = threading.Lock()
 # Start DEAN's long-lived self-hosted Chromium connection in the background.
 ensure_persistent_browser()
 start_browser_keepalive()
-
-# Safe browser-session diagnostic for deployment verification.
-def _browser_session_diag_later():
-    time.sleep(12)
-    try:
-        st = active_session_status()
-        print("BROWSER_SESSION_DIAG", st, flush=True)
-    except Exception as exc:
-        print("BROWSER_SESSION_DIAG", {"ok": False, "error": type(exc).__name__}, flush=True)
-threading.Thread(target=_browser_session_diag_later, daemon=True, name="browser-session-diag").start()
 
 def _persistent_browser_diag_later():
     try:
@@ -169,7 +158,7 @@ def init_db():
 
 init_db()
 
-CURRENT_RELEASE_NOTES = """DEAN מבדיל עכשיו בין תקלה בדפדפן לבין אתר חיצוני שלא מגיב. אם המסך המשותף מחובר והאתר עצמו נתקע, הוא לא יטען בטעות שהחיבור המשותף נפל."""
+CURRENT_RELEASE_NOTES = """בדיקת כפתור-כפתור: רענון אמיתי של האתר, אימות שגיאות בכל פקדי הדפדפן, תיקון תזכורות 'מחר ב-8', גיבוי העתקה באייפד, ניקוי Steel ישן וטיפול טוב יותר במיקרופון."""
 def register_release():
     try:
         with get_db() as con:
@@ -376,7 +365,7 @@ def parse_reminder_request(raw_text):
 
     # היום/מחר בשעה HH[:MM]
     if due is None:
-        m = re.search(r"(היום|מחר)(?:\s+(?:ב|בשעה|ב-))?\s*(\d{1,2})(?::(\d{2}))?", text)
+        m = re.search(r"(היום|מחר)(?:\s+(?:בשעה|ב-|ב))?\s*(\d{1,2})(?::(\d{2}))?", text)
         if m:
             day_add = 1 if m.group(1) == "מחר" else 0
             hh = max(0, min(23, int(m.group(2))))
@@ -1463,7 +1452,19 @@ form.addEventListener("submit",async(e)=>{
 });
 
 document.getElementById("copy").onclick=async()=>{
-  if(last)await navigator.clipboard.writeText(last);
+  if(!last)return;
+  try{
+    await navigator.clipboard.writeText(last);
+    statusEl.textContent="✅ הועתק";
+  }catch(e){
+    const ta=document.createElement("textarea");
+    ta.value=last;
+    ta.style.position="fixed"; ta.style.opacity="0";
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    try{document.execCommand("copy"); statusEl.textContent="✅ הועתק";}catch(_){statusEl.textContent="🔴 ההעתקה נכשלה";}
+    ta.remove();
+  }
 };
 
 function speakNative(text,onDone){
@@ -1619,6 +1620,9 @@ document.getElementById("mic").onclick=()=>{
   r.onresult=(e)=>{
     message.value=e.results[0][0].transcript;
     message.focus();
+  };
+  r.onerror=(e)=>{
+    statusEl.textContent=(e.error==="not-allowed"||e.error==="service-not-allowed") ? "🔴 צריך לאשר מיקרופון" : "🟡 לא שמעתי, נסה שוב";
   };
   r.start();
 };
@@ -1784,6 +1788,28 @@ async function speakChatReply(text){
 }
 
 
+async function browserPost(path,body={},busyText="מבצע..."){
+  status.textContent=busyText;
+  try{
+    const r=await fetch(path,{
+      method:"POST",
+      credentials:"same-origin",
+      headers:{"Content-Type":"application/json","X-CSRF-Token":csrf},
+      body:JSON.stringify(body)
+    });
+    let d={};
+    try{d=await r.json();}catch(e){}
+    if(!r.ok || d.ok===false){
+      status.textContent="הפעולה לא הצליחה";
+      return false;
+    }
+    return true;
+  }catch(e){
+    status.textContent="שגיאה בביצוע";
+    return false;
+  }
+}
+
 async function pollStatus(){
   try{
     const r=await fetch("/api/browser/status",{credentials:"same-origin"});
@@ -1838,38 +1864,34 @@ img.addEventListener("pointerup",async e=>{
   const totalDy=e.clientY-p.startY;
   if(p.moved){
     // Drag the page naturally: finger up => page scrolls down.
-    await fetch("/api/browser/scroll",{
-      method:"POST",
-      headers:{"Content-Type":"application/json","X-CSRF-Token":csrf},
-      body:JSON.stringify({
-        deltaX:-totalDx*(1024/r.width),
-        deltaY:-totalDy*(700/r.height),
-        x:p.remoteX,
-        y:p.remoteY
-      })
-    });
+    await browserPost("/api/browser/scroll",{
+      deltaX:-totalDx*(1024/r.width),
+      deltaY:-totalDy*(700/r.height),
+      x:p.remoteX,
+      y:p.remoteY
+    },"גולל...");
     setTimeout(refresh,120);
   }else{
-    await fetch("/api/browser/click",{
-      method:"POST",
-      headers:{"Content-Type":"application/json","X-CSRF-Token":csrf},
-      body:JSON.stringify({x,y})
-    });
+    await browserPost("/api/browser/click",{x,y},"לוחץ...");
   }
   e.preventDefault();
 });
 img.addEventListener("pointercancel",()=>{screenPointer=null;});
 document.getElementById("go").onclick=async()=>{
   const url=document.getElementById("url").value.trim();
-  await fetch("/api/browser/navigate",{method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":csrf},body:JSON.stringify({url})});
+  if(!url){status.textContent="חסרה כתובת";return;}
+  if(await browserPost("/api/browser/navigate",{url},"פותח אתר...")) setTimeout(refresh,180);
 };
-document.getElementById("reload").onclick=()=>refresh();
+document.getElementById("reload").onclick=async()=>{
+  if(await browserPost("/api/browser/reload",{},"מרענן את האתר...")) setTimeout(refresh,180);
+};
 document.getElementById("typeBtn").onclick=async()=>{
   const text=document.getElementById("typeText").value;
-  await fetch("/api/browser/type",{method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":csrf},body:JSON.stringify({text})});
+  if(!text){status.textContent="אין טקסט להקלדה";return;}
+  await browserPost("/api/browser/type",{text},"מקליד...");
 };
 document.getElementById("enterBtn").onclick=async()=>{
-  await fetch("/api/browser/key",{method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":csrf},body:JSON.stringify({key:"Enter"})});
+  await browserPost("/api/browser/key",{key:"Enter"},"לוחץ Enter...");
 };
 img.onerror=()=>{status.textContent="הדפדפן מנסה להתחבר...";};
 img.onload=()=>{status.textContent="DEAN Browser · מחובר";};
@@ -2038,6 +2060,13 @@ def api_browser_key():
     ok=persistent_browser_key(data.get("key","Enter"))
     return jsonify(ok=bool(ok)), (200 if ok else 503)
 
+@app.post("/api/browser/reload")
+@require_csrf
+def api_browser_reload():
+    ok=persistent_browser_reload()
+    return jsonify(ok=bool(ok)), (200 if ok else 503)
+
+
 @app.post("/api/speech")
 @require_login
 def api_speech():
@@ -2147,29 +2176,6 @@ def api_tiktok_status():
         scope=(st or {}).get("scope",""),
         updated=(st or {}).get("updated",""),
     )
-
-@app.get("/api/steel/status")
-@require_login
-def api_steel_status():
-    raw = os.getenv("STEEL_API_KEY", "")
-    normalized = __import__("steel_client").api_key()
-    check = steel_validate_key()
-    return jsonify(
-        configured=steel_configured(),
-        raw_present=bool(raw),
-        raw_length=len(raw),
-        normalized_length=len(normalized),
-        starts_with_ste=normalized.startswith("ste-"),
-        authenticated=check.get("authenticated", False),
-        steel_status_code=check.get("status_code"),
-        steel_error=str(check.get("error", ""))[:200] if check.get("error") else "",
-    )
-
-@app.post("/api/steel/session")
-@require_csrf
-def api_steel_session():
-    result=steel_create_session()
-    return jsonify(result), (200 if result.get("ok") else 502)
 
 @app.get("/health")
 def health():
