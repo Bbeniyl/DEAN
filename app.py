@@ -169,7 +169,7 @@ def init_db():
 
 init_db()
 
-CURRENT_RELEASE_NOTES = """סריקת יציבות מלאה: הקראה אמינה באייפד, בדיקת TTS, תזכורות בזמן אמת כשהמערכת פתוחה, בדיקת בריאות נקייה, ואימות פעולות בדפדפן לפני דיווח הצלחה."""
+CURRENT_RELEASE_NOTES = """חידוד הבנה והקשר: תיקון מסלול התחברות לדפדפן, ניקוי חיפוש ישן, שמירת הקשר רחבה יותר, למידה מתיקונים, ופחות שאלות מיותרות כשכוונת בניאל ברורה."""
 def register_release():
     try:
         with get_db() as con:
@@ -291,8 +291,13 @@ def relevant_memories(message, limit=24):
 def auto_learn_from_turn(user_text, assistant_text):
     """Extract durable, useful personal context automatically. Never store secrets."""
     try:
-        existing = "\\n".join(f"- {m['content']}" for m in list_memories(120))
-        prompt = f"""חלץ מהשיחה רק עובדות יציבות ושימושיות על בניאל שכדאי לזכור לשיחות עתידיות:
+        existing = "\\n".join(f"- {m['content']}" for m in list_memories(180))
+        recent_context = load_history(18)
+        context_text = "\\n".join(
+            ("בניאל: " if m["role"] == "user" else "DEAN: ") + m["content"][:1800]
+            for m in recent_context
+        )
+        prompt = f"""חלץ מהשיחה ומההקשר האחרון רק עובדות יציבות ושימושיות על בניאל שכדאי לזכור לשיחות עתידיות:
 העדפות, מטרות, קשרים משפחתיים, שגרה, פרויקטים, החלטות קבועות ודפוסים חשובים.
 אל תשמור סיסמאות, מפתחות, מספרי כרטיס, קודים, פרטי התחברות, מידע רגעי או ניחושים.
 אל תשמור מידע רגיש מאוד אלא אם בניאל ביקש במפורש לזכור אותו.
@@ -302,8 +307,14 @@ def auto_learn_from_turn(user_text, assistant_text):
 זיכרונות קיימים:
 {existing}
 
+הקשר אחרון:
+{context_text}
+
+התור האחרון:
 בניאל: {user_text}
-DEAN: {assistant_text}"""
+DEAN: {assistant_text}
+
+שים לב במיוחד לתיקונים של בניאל, משמעות של כינויים/קיצורים, שמות מדויקים, החלטות שהתקבלו, העדפות שחוזרות, ומה הובהר כטעות שלא לחזור עליה."""
         r = client.responses.create(
             model=MODEL,
             input=prompt,
@@ -744,21 +755,11 @@ def maybe_handle_local_command(message):
     # Direct commands for the persistent shared browser.
     # Example: "דין כנס למסך המשותף לגוגל תעשה לי תמונות של טרקטורון סיף"
     shared_context = ("מסך המשותף" in text or "דפדפן המשותף" in text or "משותף" in text)
-    image_match = re.search(r"תמונות(?:\s+בגוגל)?(?:\s+של)?\s+(.+)$", text)
     image_match2 = re.search(r"(?:תראה לי\s+)?(?:תמונות|תמונות בגוגל|תמונות של|תביא לי תמונות של)\s+(.+)$", text)
     if shared_context and image_match2:
-        query = image_match2.group(1).strip(" .,!?:;")
+        query = normalize_search_query(image_match2.group(1).strip(" .,!?:;"))
         if query:
             ok, _count = open_backend_search_results(query + " images photos")
-            if ok:
-                return "בוצע. פתחתי במסך המשותף חיפוש תמונות: " + query
-            ensure_persistent_browser()
-            return "הדפדפן המשותף מתחבר. נסה שוב בעוד כמה שניות."
-
-    if shared_context and image_match:
-        query = image_match.group(1).strip(" .,!?:;")
-        if query:
-            ok = persistent_browser_navigate("https://duckduckgo.com/?kl=il-he&iax=images&ia=images&q=" + quote_plus(query))
             if ok:
                 return "בוצע. פתחתי במסך המשותף חיפוש תמונות: " + query
             ensure_persistent_browser()
@@ -874,7 +875,7 @@ def maybe_handle_local_command(message):
                 complete_reminder(int(raw))
                 return f"סימנתי את תזכורת {raw} כבוצעה."
 
-        approval_prefixes = ["בקשת אישור ", "צריך אישור "]
+    approval_prefixes = ["בקשת אישור ", "צריך אישור "]
     for prefix in approval_prefixes:
         if text.startswith(prefix):
             content = text[len(prefix):].strip()
@@ -953,6 +954,10 @@ def dean_instructions(current_message=""):
 - התייחס להיסטוריית השיחה ולזיכרונות המצורפים ולא כאילו זו פגישה ראשונה.
 - השיחות נשמרות עבורך. כשבניאל חוזר לנושא ישן, השתמש גם בקטעי שיחה ישנים רלוונטיים שמצורפים לקלט ולא רק בהודעות האחרונות.
 - אם פרט מופיע בשיחה ישנה ורלוונטית, אל תגיד "אני לא זוכר" רק מפני שהוא לא נאמר עכשיו.
+- כשבניאל משתמש בקיצור כמו "זה", "אותו", "הקודם", "מה שאמרתי", "כמו קודם", או כשהכתבה קולית משבשת מילה, קודם חפש את המשמעות בהודעות האחרונות, בזיכרונות ובנושא הפעיל. אל תאבד הקשר רק בגלל ניסוח חלקי.
+- אם יש פירוש אחד ברור לפי ההקשר, תפעל לפיו בלי לשאול שאלה מיותרת. אם יש שני פירושים סבירים שיכולים לשנות את התוצאה משמעותית, שאל שאלה קצרה אחת.
+- תיקון של בניאל גובר על ניסוח קודם. אם הוא אומר "לא, התכוונתי ל..." עדכן את ההבנה להמשך השיחה ואל תחזור לטעות הישנה.
+- אל תחליף מותג, דגם, סכום, תאריך, אדם או יעד במשהו דומה רק כי זיהוי הקול היה לא מושלם. כשיש ספק קטן, השתמש בהקשר; כשיש ספק מהותי, אמת לפני ביצוע.
 - אם חסר מידע מהותי, שאל. אל תמציא עובדות על בניאל.
 - אם טעית, תקן את עצמך.
 - חפש באינטרנט כשמידע עשוי להשתנות או כשנדרשת בדיקה עדכנית.
@@ -1049,7 +1054,7 @@ def needs_browser(message):
     return any(x in text for x in action_words)
 
 def ask_dean(message):
-    history = load_relevant_history(message, recent_limit=10, scan_limit=180, max_extra=6)
+    history = load_relevant_history(message, recent_limit=20, scan_limit=700, max_extra=20)
     tools = [{
         "type": "function",
         "name": "browser_run",
@@ -2043,6 +2048,10 @@ def login_post():
     if not supplied or not secrets.compare_digest(supplied, csrf_token()):
         abort(403)
 
+    next_path = request.form.get("next", "")
+    if not (next_path.startswith("/") and not next_path.startswith("//")):
+        next_path = url_for("home")
+
     ip = (
         request.headers.get("X-Forwarded-For")
         or request.remote_addr
@@ -2066,10 +2075,6 @@ def login_post():
             error="יותר מדי ניסיונות. נסה שוב בעוד כמה דקות.",
             next_path=next_path
         ), 429
-
-    next_path = request.form.get("next", "")
-    if not (next_path.startswith("/") and not next_path.startswith("//")):
-        next_path = url_for("home")
 
     password = request.form.get("password", "")
     ok = secrets.compare_digest(password, DEAN_PASSWORD)
