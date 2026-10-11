@@ -2262,7 +2262,7 @@ def run_full_selftest():
             record("speech_tts", False, f"{type(exc).__name__}: {str(exc)[:120]}")
 
         # Persistent browser end-to-end on our own controlled page.
-        ready=browser_wait_until_ready(70)
+        ready=browser_wait_until_ready(180)
         record("browser_ready", ready, persistent_browser_status())
         if ready:
             test_url="https://dean-agent-5y18.onrender.com/browser-test"
@@ -2286,6 +2286,51 @@ def run_full_selftest():
             record("browser_reload", persistent_browser_reload())
             time.sleep(.2)
             record("browser_frame", bool(persistent_browser_frame()), persistent_browser_status().get("frame_age"))
+            # An internal test page alone cannot prove access to the web.
+            external_url=os.getenv("BROWSER_SELFTEST_EXTERNAL_URL", "https://example.org").strip()
+            external_text=os.getenv("BROWSER_SELFTEST_EXTERNAL_TEXT", "Example Domain").strip()
+            external_link=os.getenv("BROWSER_SELFTEST_EXTERNAL_LINK", "More information").strip()
+            external_started=time.time()
+            external_ok=persistent_browser_navigate(external_url)
+            record("browser_external_navigate", external_ok)
+            external_dom=None
+            if external_ok:
+                deadline=time.monotonic()+20
+                while time.monotonic()<deadline:
+                    external_dom=persistent_browser_eval(
+                        "({title:document.title,url:location.href,text:document.body?.innerText||''})")
+                    if (isinstance(external_dom,dict) and external_text.lower() in
+                            str(external_dom.get("text", "")).lower()):
+                        break
+                    time.sleep(.5)
+            dom_ok=(isinstance(external_dom,dict) and bool(external_text) and
+                    external_text.lower() in str(external_dom.get("text", "")).lower())
+            record("browser_external_content", dom_ok,
+                   (external_dom or {}).get("title", "") if isinstance(external_dom,dict) else "")
+            # Require a newly captured image, rather than the previous test page.
+            deadline=time.monotonic()+10
+            while dom_ok and time.monotonic()<deadline:
+                frame_status=persistent_browser_status()
+                if frame_status.get("frame_at",0)>external_started and frame_status.get("frame_fresh"):
+                    break
+                time.sleep(.3)
+            frame_status=persistent_browser_status()
+            record("browser_external_frame", dom_ok and
+                   frame_status.get("frame_at",0)>external_started and frame_status.get("frame_fresh"))
+            before_url=(external_dom or {}).get("url", "") if isinstance(external_dom,dict) else ""
+            followed=False
+            if dom_ok and persistent_browser_click_text(external_link):
+                deadline=time.monotonic()+20
+                while time.monotonic()<deadline:
+                    after=persistent_browser_eval(
+                        "({url:location.href,title:document.title,ready:document.readyState,text:document.body?.innerText||''})")
+                    if (isinstance(after,dict) and after.get("url")!=before_url and
+                            str(after.get("url", "")).startswith(("https://", "http://")) and
+                            after.get("ready")=="complete" and len(after.get("text", ""))>100):
+                        followed=True
+                        break
+                    time.sleep(.5)
+            record("browser_external_follow_link", followed)
             restore=persistent_browser_navigate("https://dean-agent-5y18.onrender.com/browser-start")
             record("browser_restore", restore)
 
