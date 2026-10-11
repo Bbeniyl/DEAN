@@ -1,4 +1,5 @@
 import base64
+import functools
 import json
 import os
 import threading
@@ -12,6 +13,7 @@ TOKEN = (os.getenv("BROWSERLESS_API_KEY", "") or "").strip().strip('"').strip("'
 
 _lock = threading.Lock()
 _send_lock = threading.Lock()
+_page_lock = threading.RLock()
 _pending_lock = threading.Lock()
 _pending = {}
 _thread = None
@@ -134,6 +136,43 @@ def _send_wait(method, params=None, session_id=None, timeout=10):
             _pending.pop(rid, None)
 
 
+def _serialized_page_action(action):
+    @functools.wraps(action)
+    def run(*args, **kwargs):
+        # Chromium's screenshot can stall if navigation replaces the renderer
+        # while capture is in flight. Keep page-changing actions separate.
+        if not _cdp_session_id and not wait_until_ready(30):
+            return False
+        with _page_lock:
+            if not _cdp_session_id:
+                _set(last_error="browser_disconnected")
+                return False
+            result = action(*args, **kwargs)
+            if result:
+                _settle_page()
+            return result
+    return run
+
+
+def _settle_page():
+    time.sleep(.25)
+    try:
+        with _lock:
+            target_id = _state.get("target_id")
+        if target_id:
+            _send_wait("Target.activateTarget", {"targetId": target_id}, timeout=10)
+        _send_wait("Page.bringToFront", {}, _cdp_session_id, timeout=10)
+        deadline = time.monotonic() + 15
+        while time.monotonic() < deadline:
+            if evaluate_js("document.readyState") == "complete":
+                return
+            time.sleep(.25)
+    except Exception:
+        # Action success remains independently verified by its own CDP reply.
+        # The receiver/capture worker will report a connection failure if any.
+        return
+
+
 def _runner():
     global _ws, _cdp_session_id, _latest_frame
     while True:
@@ -217,29 +256,32 @@ def _capture_frames(ws, session_id):
     failed_since = None
     while _ws is ws:
         try:
-            # Cross-site navigation can replace the renderer. Keep this page
-            # in the foreground before asking Chromium for its visible surface.
-            with _lock:
-                target_id = _state.get("target_id")
-            if target_id:
-                _send_wait("Target.activateTarget", {"targetId": target_id}, timeout=10)
-            _send_wait("Page.bringToFront", {}, session_id, timeout=10)
-            result = _send_wait("Page.captureScreenshot", {
-                "format": "jpeg", "quality": 60, "fromSurface": True,
-                "captureBeyondViewport": False,
-            }, session_id, timeout=30).get("result") or {}
-            data = result.get("data")
-            if not data:
-                raise RuntimeError("screenshot_empty")
-            frame = base64.b64decode(data, validate=True)
-            if not frame:
-                raise RuntimeError("screenshot_empty")
-            with _lock:
+            with _page_lock:
                 if _ws is not ws:
                     return
-                _latest_frame = frame
-                _state.update(viewer_ready=True, frame_at=time.time(), last_error="")
-            failed_since = None
+                # Cross-site navigation can replace the renderer. Keep this page
+                # in the foreground before asking Chromium for its visible surface.
+                with _lock:
+                    target_id = _state.get("target_id")
+                if target_id:
+                    _send_wait("Target.activateTarget", {"targetId": target_id}, timeout=10)
+                _send_wait("Page.bringToFront", {}, session_id, timeout=10)
+                result = _send_wait("Page.captureScreenshot", {
+                    "format": "jpeg", "quality": 60, "fromSurface": True,
+                    "captureBeyondViewport": False,
+                }, session_id, timeout=30).get("result") or {}
+                data = result.get("data")
+                if not data:
+                    raise RuntimeError("screenshot_empty")
+                frame = base64.b64decode(data, validate=True)
+                if not frame:
+                    raise RuntimeError("screenshot_empty")
+                with _lock:
+                    if _ws is not ws:
+                        return
+                    _latest_frame = frame
+                    _state.update(viewer_ready=True, frame_at=time.time(), last_error="")
+                failed_since = None
             time.sleep(1)
         except Exception as exc:
             if _ws is ws:
@@ -309,6 +351,7 @@ def latest_frame():
     return frame
 
 
+@_serialized_page_action
 def navigate(url):
     if not url:
         return False
@@ -357,6 +400,7 @@ def navigate(url):
         return False
 
 
+@_serialized_page_action
 def reload_page():
     if not _cdp_session_id and not wait_until_ready(20):
         return False
@@ -376,6 +420,7 @@ def reload_page():
         return False
 
 
+@_serialized_page_action
 def click(x, y):
     if not _cdp_session_id and not wait_until_ready(20):
         return False
@@ -422,6 +467,7 @@ def evaluate_js(expression):
         return None
 
 
+@_serialized_page_action
 def click_text(text):
     needle = str(text or "").strip()
     if not needle:
@@ -464,6 +510,7 @@ def type_text(text):
         return False
 
 
+@_serialized_page_action
 def press_key(key):
     if not _cdp_session_id and not wait_until_ready(20):
         return False
