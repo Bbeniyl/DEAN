@@ -170,6 +170,7 @@ def _runner():
                 "width": 1024, "height": 700, "deviceScaleFactor": 1, "mobile": False
             }, session_id)
             _send("Page.enable", {}, session_id)
+            _send("Page.bringToFront", {}, session_id)
             ws.settimeout(2.0)
             _set(viewer_ready=False)
 
@@ -179,7 +180,7 @@ def _runner():
                 shot_id = _send("Page.captureScreenshot", {
                     "format": "jpeg",
                     "quality": 70,
-                    "fromSurface": True,
+                    "fromSurface": False,
                     "captureBeyondViewport": False
                 }, session_id)
                 deadline = time.time() + 12
@@ -205,15 +206,17 @@ def _runner():
                         if params.get("url"):
                             _set(current_url=str(params.get("url")))
                     if event.get("id") == shot_id:
+                        if event.get("error"):
+                            raise RuntimeError("screenshot_failed: " + str(event["error"])[:140])
                         data = ((event.get("result") or {}).get("data"))
-                        if data:
-                            try:
-                                frame = base64.b64decode(data)
-                                with _lock:
-                                    _latest_frame = frame
-                                _set(viewer_ready=True, frame_at=time.time())
-                            except Exception:
-                                pass
+                        if not data:
+                            raise RuntimeError("screenshot_empty")
+                        frame = base64.b64decode(data, validate=True)
+                        if not frame:
+                            raise RuntimeError("screenshot_empty")
+                        with _lock:
+                            _latest_frame = frame
+                        _set(viewer_ready=True, frame_at=time.time(), last_error="")
                         break
                 else:
                     raise TimeoutError("screenshot response timeout")
