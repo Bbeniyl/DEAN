@@ -1070,12 +1070,9 @@ def run_browser_agent(url, goal):
             ok, count = open_backend_search_results(q)
             return {"ok": bool(ok), "action": "web_search", "query": q, "results": count}
 
-        open_site_intent = bool(re.search(
-            r"(?:פתח|תפתח|כנס|תיכנס|עבור|תעבור|נווט|תנווט).*(?:אתר|עמוד|דף)|(?:אתר|עמוד|דף).*(?:בדפדפן|במסך)",
-            goal_text,
-            re.I,
-        ))
-        if url_text and open_site_intent:
+        # A non-empty tool URL is an explicit navigation destination.
+        # Current-page clicks use an empty URL, per the tool schema.
+        if url_text:
             ok = persistent_browser_navigate(url_text)
             st = persistent_browser_status()
             if ok:
@@ -1099,20 +1096,6 @@ def run_browser_agent(url, goal):
             ok = persistent_browser_click_text(label)
             return {"ok": bool(ok), "action": "click_text", "label": label}
 
-        if url_text:
-            ok = persistent_browser_navigate(url_text)
-            st = persistent_browser_status()
-            if ok:
-                return {"ok": True, "action": "navigate", "url": url_text, "current_url": st.get("current_url","")}
-            return {
-                "ok": False,
-                "action": "navigate",
-                "error": "target_site_unreachable",
-                "url": url_text,
-                "browser_connected": bool(st.get("connected") and st.get("viewer_ready")),
-                "current_url": st.get("current_url",""),
-                "detail": st.get("last_error","")
-            }
 
         return {"ok": False, "error": "missing_browser_action"}
     except Exception as e:
