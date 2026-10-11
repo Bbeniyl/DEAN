@@ -1811,21 +1811,70 @@ async function browserPost(path,body={},busyText="מבצע..."){
   }
 }
 
+let frameLoading=false;
+let frameTimer=null;
+let statusLoading=false;
+let statusTimer=null;
+let frameUrl=null;
+let displayedFrameAt=0;
 async function pollStatus(){
+  if(statusLoading)return;
+  clearTimeout(statusTimer);
+  statusLoading=true;
   try{
-    const r=await fetch("/api/browser/status",{credentials:"same-origin"});
+    const r=await fetch("/api/browser/status",{credentials:"same-origin",cache:"no-store"});
+    if(r.status===401){location.href="/login?next=/browser";return;}
+    if(!r.ok)throw new Error("status");
     const d=await r.json();
-    if(d.viewer_ready){status.textContent="DEAN Browser · מחובר";}
+    const displayedFresh=displayedFrameAt && Date.now()-displayedFrameAt<4000;
+    if(d.viewer_ready && displayedFresh){status.textContent="DEAN Browser · מחובר";}
     else if(d.connected){status.textContent="הדפדפן מחובר, מחכה לתמונה חדשה...";}
-    else{status.textContent="הדפדפן מתחבר...";}
+    else{status.textContent="הדפדפן מתחבר מחדש...";displayedFrameAt=0;img.removeAttribute("src");}
     const urlBox=document.getElementById("url");
-    if(d.current_url && document.activeElement!==urlBox){
-      urlBox.value=d.current_url;
-    }
-  }catch(e){ status.textContent="הדפדפן מנסה להתחבר..."; }
+    if(d.current_url && document.activeElement!==urlBox)urlBox.value=d.current_url;
+  }catch(e){status.textContent="אין תשובה מהשרת, מנסה להתחבר מחדש...";}
+  finally{statusLoading=false;statusTimer=setTimeout(pollStatus,1200);}
 }
-function refresh(){ img.src="/api/browser/frame?t="+Date.now(); }
-setInterval(refresh,700); setInterval(pollStatus,1200); refresh(); pollStatus();
+async function refresh(){
+  if(frameLoading)return;
+  clearTimeout(frameTimer);
+  frameLoading=true;
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),15000);
+  let nextUrl=null;
+  try{
+    const r=await fetch("/api/browser/frame?t="+Date.now(),{
+      credentials:"same-origin",cache:"no-store",signal:controller.signal
+    });
+    if(r.status===401){location.href="/login?next=/browser";return;}
+    if(!r.ok)throw new Error("frame");
+    nextUrl=URL.createObjectURL(await r.blob());
+    // Decode the complete image before replacing the visible frame. Never
+    // cancel an in-flight image every 700ms on a slow iPad connection.
+    const nextImage=new Image();
+    nextImage.src=nextUrl;
+    await nextImage.decode();
+    img.src=nextUrl;
+    if(frameUrl)URL.revokeObjectURL(frameUrl);
+    frameUrl=nextUrl;
+    nextUrl=null;
+    displayedFrameAt=Date.now();
+  }catch(e){
+    if(!displayedFrameAt || Date.now()-displayedFrameAt>4000){
+      img.removeAttribute("src");
+      status.textContent="מחכה לתמונה חדשה מהדפדפן...";
+    }
+  }finally{
+    if(nextUrl)URL.revokeObjectURL(nextUrl);
+    clearTimeout(timeout);
+    frameLoading=false;
+    frameTimer=setTimeout(refresh,700);
+  }
+}
+document.addEventListener("visibilitychange",()=>{
+  if(!document.hidden){refresh();pollStatus();}
+});
+refresh();pollStatus();
 
 let screenPointer=null;
 img.addEventListener("pointerdown",e=>{
@@ -1894,8 +1943,7 @@ document.getElementById("typeBtn").onclick=async()=>{
 document.getElementById("enterBtn").onclick=async()=>{
   await browserPost("/api/browser/key",{key:"Enter"},"לוחץ Enter...");
 };
-img.onerror=()=>{status.textContent="הדפדפן מנסה להתחבר...";};
-img.onload=()=>{status.textContent="DEAN Browser · מחובר";};
+
 
 document.getElementById("chatToggle").onclick=()=>pane.classList.add("open");
 document.getElementById("closeChat").onclick=()=>pane.classList.remove("open");

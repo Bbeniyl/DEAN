@@ -81,7 +81,10 @@ def _send(method, params=None, session_id=None):
 def _wait_for_response(ws, wanted_id, timeout=20):
     deadline = time.time() + timeout
     while time.time() < deadline:
-        raw = ws.recv()
+        try:
+            raw = ws.recv()
+        except websocket.WebSocketTimeoutException:
+            continue
         if not raw:
             raise RuntimeError("browser websocket closed")
         event = json.loads(raw)
@@ -139,8 +142,12 @@ def _runner():
             with _lock:
                 _latest_frame = None
             _set(started=True, connected=False, viewer_ready=False, target_id=None, current_url="https://dean-agent-5y18.onrender.com/browser-start", frame_at=0, last_error="")
+            # Wake the HTTP service before attempting a WebSocket handshake.
+            wake_browser_service()
             ws = websocket.create_connection(_ws_url(), timeout=30, origin=BASE_URL)
-            ws.settimeout(None)
+            # Initialization must time out too; an unresponsive socket must not
+            # trap this only reconnect thread forever.
+            ws.settimeout(2.0)
             _ws = ws
             _set(connected=True, last_error="")
 
@@ -217,6 +224,10 @@ def _runner():
             _set(connected=False, viewer_ready=False, target_id=None, frame_at=0, last_error=f"{type(exc).__name__}: {str(exc)[:180]}")
             _ws = None
             _cdp_session_id = None
+            with _pending_lock:
+                for item in _pending.values():
+                    item["response"] = {"error": {"message": "browser_disconnected"}}
+                    item["event"].set()
             try:
                 if ws:
                     ws.close()
@@ -239,12 +250,13 @@ def wake_browser_service():
 
 def wait_until_ready(timeout=25):
     ensure_started()
-    # Trigger Render wake-up immediately if the browser service is sleeping.
-    wake_browser_service()
-    deadline = time.time() + max(1, float(timeout))
-    while time.time() < deadline:
+    # The reconnect thread performs wake-up. Do not block every user action
+    # behind an extra HTTP request when the existing connection is ready.
+    deadline = time.monotonic() + max(1, float(timeout))
+    while time.monotonic() < deadline:
         with _lock:
-            ready = bool(_state.get("connected") and _state.get("viewer_ready") and _cdp_session_id)
+            ready = bool(_state.get("connected") and _state.get("viewer_ready")
+                         and _cdp_session_id and time.time() - _state.get("frame_at", 0) <= 4.0)
         if ready:
             return True
         time.sleep(0.5)
