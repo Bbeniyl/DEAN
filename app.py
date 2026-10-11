@@ -2305,7 +2305,9 @@ def run_full_selftest():
             dom_ok=(isinstance(external_dom,dict) and bool(external_text) and
                     external_text.lower() in str(external_dom.get("text", "")).lower())
             record("browser_external_content", dom_ok,
-                   (external_dom or {}).get("title", "") if isinstance(external_dom,dict) else "")
+                   {"expected":external_text,"body":str(external_dom.get("text", ""))[:80],
+                    "title":external_dom.get("title", ""),"url":external_dom.get("url", "")}
+                   if isinstance(external_dom,dict) else persistent_browser_status().get("last_error", ""))
             # Require an image captured after the destination content was verified.
             content_verified_at=time.time()
             deadline=time.monotonic()+10
