@@ -174,53 +174,26 @@ def _runner():
             ws.settimeout(2.0)
             _set(viewer_ready=False)
 
-            # Capture the real shared page repeatedly. This is more reliable on
-            # Render/iPad than CDP screencast events and still uses the same tab.
+            # One receiver continuously dispatches CDP replies. Screenshot
+            # requests run separately so a slow capture cannot stall user replies.
+            threading.Thread(target=_capture_frames, args=(ws, session_id),
+                             daemon=True, name="dean-browser-frames").start()
             while True:
-                shot_id = _send("Page.captureScreenshot", {
-                    "format": "jpeg",
-                    "quality": 70,
-                    "fromSurface": False,
-                    "captureBeyondViewport": False
-                }, session_id)
-                deadline = time.time() + 12
-                while time.time() < deadline:
-                    try:
-                        raw = ws.recv()
-                    except websocket.WebSocketTimeoutException:
-                        continue
-                    if not raw:
-                        raise RuntimeError("browser websocket closed")
-                    try:
-                        event = json.loads(raw)
-                    except Exception:
-                        continue
-                    _dispatch_pending(event)
-                    method = event.get("method")
-                    params = event.get("params") or {}
-                    if method == "Page.frameNavigated":
-                        frame_info = params.get("frame") or {}
-                        if not frame_info.get("parentId") and frame_info.get("url"):
-                            _set(current_url=str(frame_info.get("url")))
-                    elif method == "Page.navigatedWithinDocument":
-                        if params.get("url"):
-                            _set(current_url=str(params.get("url")))
-                    if event.get("id") == shot_id:
-                        if event.get("error"):
-                            raise RuntimeError("screenshot_failed: " + str(event["error"])[:140])
-                        data = ((event.get("result") or {}).get("data"))
-                        if not data:
-                            raise RuntimeError("screenshot_empty")
-                        frame = base64.b64decode(data, validate=True)
-                        if not frame:
-                            raise RuntimeError("screenshot_empty")
-                        with _lock:
-                            _latest_frame = frame
-                        _set(viewer_ready=True, frame_at=time.time(), last_error="")
-                        break
-                else:
-                    raise TimeoutError("screenshot response timeout")
-                time.sleep(0.65)
+                try:
+                    raw = ws.recv()
+                except websocket.WebSocketTimeoutException:
+                    continue
+                if not raw:
+                    raise RuntimeError("browser websocket closed")
+                event = json.loads(raw)
+                _dispatch_pending(event)
+                params = event.get("params") or {}
+                if event.get("method") == "Page.frameNavigated":
+                    frame_info = params.get("frame") or {}
+                    if not frame_info.get("parentId") and frame_info.get("url"):
+                        _set(current_url=str(frame_info["url"]))
+                elif event.get("method") == "Page.navigatedWithinDocument" and params.get("url"):
+                    _set(current_url=str(params["url"]))
         except Exception as exc:
             with _lock:
                 _latest_frame = None
@@ -237,6 +210,36 @@ def _runner():
             except Exception:
                 pass
             time.sleep(3)
+
+
+def _capture_frames(ws, session_id):
+    global _latest_frame
+    while _ws is ws:
+        try:
+            result = _send_wait("Page.captureScreenshot", {
+                "format": "jpeg", "quality": 60, "fromSurface": True,
+                "captureBeyondViewport": False,
+            }, session_id, timeout=10).get("result") or {}
+            data = result.get("data")
+            if not data:
+                raise RuntimeError("screenshot_empty")
+            frame = base64.b64decode(data, validate=True)
+            if not frame:
+                raise RuntimeError("screenshot_empty")
+            with _lock:
+                if _ws is not ws:
+                    return
+                _latest_frame = frame
+                _state.update(viewer_ready=True, frame_at=time.time(), last_error="")
+            time.sleep(1)
+        except Exception as exc:
+            if _ws is ws:
+                _set(viewer_ready=False, last_error="screenshot: " + type(exc).__name__)
+                try:
+                    ws.close()
+                except Exception:
+                    pass
+            return
 
 
 def wake_browser_service():
