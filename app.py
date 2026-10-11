@@ -2287,9 +2287,9 @@ def run_full_selftest():
             time.sleep(.2)
             record("browser_frame", bool(persistent_browser_frame()), persistent_browser_status().get("frame_age"))
             # An internal test page alone cannot prove access to the web.
-            external_url=os.getenv("BROWSER_SELFTEST_EXTERNAL_URL", "https://example.org").strip()
-            external_text=os.getenv("BROWSER_SELFTEST_EXTERNAL_TEXT", "Example Domain").strip()
-            external_link=os.getenv("BROWSER_SELFTEST_EXTERNAL_LINK", "More information").strip()
+            external_url=os.getenv("BROWSER_SELFTEST_EXTERNAL_URL", "https://www.python.org/").strip()
+            external_text=os.getenv("BROWSER_SELFTEST_EXTERNAL_TEXT", "Python").strip()
+            external_link=os.getenv("BROWSER_SELFTEST_EXTERNAL_LINK", "About").strip()
             external_ok=persistent_browser_navigate(external_url)
             record("browser_external_navigate", external_ok)
             external_dom=None
