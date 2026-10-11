@@ -721,6 +721,7 @@ def maybe_handle_local_command(message):
     # never DEAN's home page and never be delegated to the language model.
     shared_link_request = (
         ("קישור" in text or "לינק" in text or "כתובת" in text)
+        and not any(v in text for v in ("פתח", "תפתח", "כנס", "תיכנס", "נווט"))
         and (
             ("דפדפן" in text and "משותף" in text)
             or ("מסך" in text and "משותף" in text)
@@ -811,11 +812,11 @@ def maybe_handle_local_command(message):
     # fall through to browser_run so the live page actually changes.
     asks_for_viewer_itself = (
         bare_browser_command
-        or (
-            wants_open
-            and mentions_shared_browser
-            and not any(word in text for word in ("אתר", "עמוד", "דף", "תוצאה", "קישור", "לינק"))
-        )
+        or bool(re.fullmatch(
+            r"(?:דין[ ,:]*|DEAN[ ,:]*)?(?:פתח|תפתח|תפתחי|כנס|תיכנס)"
+            r"\s+(?:לי\s+)?(?:את\s+)?(?:ה?דפדפן\s+ה?משותף|ה?מסך\s+ה?משותף)[ .,!?:;]*",
+            text, re.I,
+        ))
     )
     if asks_for_viewer_itself:
         st = persistent_browser_status()
