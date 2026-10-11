@@ -219,6 +219,10 @@ def _capture_frames(ws, session_id):
         try:
             # Cross-site navigation can replace the renderer. Keep this page
             # in the foreground before asking Chromium for its visible surface.
+            with _lock:
+                target_id = _state.get("target_id")
+            if target_id:
+                _send_wait("Target.activateTarget", {"targetId": target_id}, timeout=10)
             _send_wait("Page.bringToFront", {}, session_id, timeout=10)
             result = _send_wait("Page.captureScreenshot", {
                 "format": "jpeg", "quality": 60, "fromSurface": True,
