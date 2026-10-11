@@ -214,6 +214,7 @@ def _runner():
 
 def _capture_frames(ws, session_id):
     global _latest_frame
+    failed_since = None
     while _ws is ws:
         try:
             result = _send_wait("Page.captureScreenshot", {
@@ -231,11 +232,21 @@ def _capture_frames(ws, session_id):
                     return
                 _latest_frame = frame
                 _state.update(viewer_ready=True, frame_at=time.time(), last_error="")
+            failed_since = None
             time.sleep(1)
         except Exception as exc:
             if _ws is ws:
-                print("BROWSER_FRAME_RECONNECT", type(exc).__name__, flush=True)
                 _set(viewer_ready=False, last_error="screenshot: " + type(exc).__name__)
+                # Chromium can reject capture briefly during navigation/reload.
+                # A capture error alone must not destroy the user's whole page.
+                if isinstance(exc, RuntimeError):
+                    if failed_since is None:
+                        failed_since = time.monotonic()
+                        print("BROWSER_FRAME_RETRY", str(exc)[:180], flush=True)
+                    if time.monotonic() - failed_since < 30:
+                        time.sleep(1)
+                        continue
+                print("BROWSER_FRAME_RECONNECT", type(exc).__name__, str(exc)[:180], flush=True)
                 try:
                     ws.close()
                 except Exception:
