@@ -2290,7 +2290,6 @@ def run_full_selftest():
             external_url=os.getenv("BROWSER_SELFTEST_EXTERNAL_URL", "https://example.org").strip()
             external_text=os.getenv("BROWSER_SELFTEST_EXTERNAL_TEXT", "Example Domain").strip()
             external_link=os.getenv("BROWSER_SELFTEST_EXTERNAL_LINK", "More information").strip()
-            external_started=time.time()
             external_ok=persistent_browser_navigate(external_url)
             record("browser_external_navigate", external_ok)
             external_dom=None
@@ -2307,16 +2306,17 @@ def run_full_selftest():
                     external_text.lower() in str(external_dom.get("text", "")).lower())
             record("browser_external_content", dom_ok,
                    (external_dom or {}).get("title", "") if isinstance(external_dom,dict) else "")
-            # Require a newly captured image, rather than the previous test page.
+            # Require an image captured after the destination content was verified.
+            content_verified_at=time.time()
             deadline=time.monotonic()+10
             while dom_ok and time.monotonic()<deadline:
                 frame_status=persistent_browser_status()
-                if frame_status.get("frame_at",0)>external_started and frame_status.get("frame_fresh"):
+                if frame_status.get("frame_at",0)>content_verified_at and frame_status.get("frame_fresh"):
                     break
                 time.sleep(.3)
             frame_status=persistent_browser_status()
             record("browser_external_frame", dom_ok and
-                   frame_status.get("frame_at",0)>external_started and frame_status.get("frame_fresh"))
+                   frame_status.get("frame_at",0)>content_verified_at and frame_status.get("frame_fresh"))
             before_url=(external_dom or {}).get("url", "") if isinstance(external_dom,dict) else ""
             followed=False
             if dom_ok and persistent_browser_click_text(external_link):
