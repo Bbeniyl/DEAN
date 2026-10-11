@@ -219,7 +219,7 @@ def _capture_frames(ws, session_id):
             result = _send_wait("Page.captureScreenshot", {
                 "format": "jpeg", "quality": 60, "fromSurface": True,
                 "captureBeyondViewport": False,
-            }, session_id, timeout=10).get("result") or {}
+            }, session_id, timeout=30).get("result") or {}
             data = result.get("data")
             if not data:
                 raise RuntimeError("screenshot_empty")
@@ -234,6 +234,7 @@ def _capture_frames(ws, session_id):
             time.sleep(1)
         except Exception as exc:
             if _ws is ws:
+                print("BROWSER_FRAME_RECONNECT", type(exc).__name__, flush=True)
                 _set(viewer_ready=False, last_error="screenshot: " + type(exc).__name__)
                 try:
                     ws.close()
@@ -299,7 +300,7 @@ def navigate(url):
     if not _cdp_session_id and not wait_until_ready(30):
         return False
     try:
-        r = _send_wait("Page.navigate", {"url": value}, _cdp_session_id, timeout=12)
+        r = _send_wait("Page.navigate", {"url": value}, _cdp_session_id, timeout=30)
         result = r.get("result") or {}
         if result.get("errorText"):
             _set(last_error=str(result.get("errorText"))[:180])
@@ -393,7 +394,7 @@ def evaluate_js(expression):
             "userGesture":True,
             "awaitPromise":True,
             "returnByValue":True,
-        }, _cdp_session_id, 10)
+        }, _cdp_session_id, 20)
         result = ((r.get("result") or {}).get("result") or {})
         if result.get("subtype") == "error":
             return None
