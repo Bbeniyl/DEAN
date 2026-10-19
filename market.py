@@ -3,13 +3,13 @@ import json
 import math
 import re
 import secrets
+import copy
 from contextlib import closing
 import threading
 import time
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 
@@ -33,14 +33,15 @@ INSTRUMENTS = (
     ("NG=F", "גז טבעי", "חוזה עתידי — מועד החוזה לפי הספק"),
     ("BTC-USD", "ביטקוין", "נכס דיגיטלי"),
 )
-CACHE_SECONDS = 60
+QUOTE_REFRESH_SECONDS = 20
 NEWS_SECONDS = 300
 _lock = threading.Lock()
-_cached = None
-_cached_at = 0.0
-_cached_key = None
+_quote_cache = {}
+_quote_checked_at = {}
+_quote_fetching = set()
 _news = None
 _news_at = 0.0
+_news_fetching = False
 
 
 def iso(timestamp=None):
@@ -216,30 +217,90 @@ def get_news():
         return {"items": [], "fetched_at": iso(), "error": "מקור החדשות אינו זמין כרגע"}
 
 
-def snapshot(symbols=None):
-    global _cached, _cached_at, _cached_key, _news, _news_at
+def _refresh_quote(instrument):
+    symbol, name, kind = instrument
+    try:
+        quote = get_quote(instrument)
+    except Exception:
+        quote = {"symbol": symbol, "name": name, "kind": kind,
+                 "error": "לא התקבל מחיר תקין מהספק"}
     with _lock:
-        now = time.monotonic()
-        available = {item[0]: item for item in INSTRUMENTS}
-        selected = tuple(symbols or [x[0] for x in INSTRUMENTS[:6]])
-        selected = tuple(dict.fromkeys(s for s in selected if s in available))[:6]
-        if len(selected) < 6:
-            selected += tuple(s for s in available if s not in selected)[:6-len(selected)]
-        if _cached is not None and selected == _cached_key and now - _cached_at < CACHE_SECONDS:
-            return _cached
-        with ThreadPoolExecutor(max_workers=6) as pool:
-            quotes = list(pool.map(get_quote, [available[s] for s in selected]))
-        quotes = [dict(q, commentary=explain_quote(q)) for q in quotes]
-        if _news is None or now - _news_at >= NEWS_SECONDS:
-            _news = get_news()
-            _news_at = time.monotonic()
-        _cached = {"fetched_at": iso(), "quotes": quotes, "news": _news,
-                   "catalog": [{"symbol":s,"name":n,"kind":k} for s,n,k in INSTRUMENTS],
-                   "refresh_seconds": CACHE_SECONDS, "streaming": False,
-                   "notice": "רענון כל דקה בזמן שהמסך פתוח. נתוני ייחוס בלבד, לא שערי Plus500. אין חיבור לחשבון או ביצוע עסקאות."}
-        _cached_at = time.monotonic()
-        _cached_key = selected
-        return _cached
+        checked = time.monotonic()
+        previous = _quote_cache.get(symbol)
+        if quote.get("error"):
+            if previous and previous.get("price") is not None:
+                quote = dict(previous, stale=True, provider_offline=True,
+                             fetch_error="המקור לא הגיב; מוצג המחיר האחרון שהתקבל")
+                _quote_cache[symbol] = quote
+            _quote_checked_at[symbol] = checked
+        else:
+            quote["provider_offline"] = False
+            quote["last_checked_at"] = iso()
+            _quote_cache[symbol] = quote
+            _quote_checked_at[symbol] = checked
+        if quote.get("error"):
+            _quote_cache[symbol] = quote
+        _quote_fetching.discard(symbol)
+
+
+def _refresh_news():
+    global _news, _news_at, _news_fetching
+    try:
+        result = get_news()
+    except Exception:
+        result = {"items": [], "fetched_at": iso(), "error": "מקור החדשות אינו זמין כרגע"}
+    with _lock:
+        if not result.get("error") or _news is None:
+            _news = result
+        _news_at = time.monotonic()
+        _news_fetching = False
+
+
+def _start_daemon(target, *args):
+    threading.Thread(target=target, args=args, daemon=True,
+                     name="dean-market-refresh").start()
+
+
+def snapshot(symbols=None):
+    """Return immediately from cache; refresh prices and headlines off-request."""
+    global _news_fetching
+    now = time.monotonic()
+    available = {item[0]: item for item in INSTRUMENTS}
+    selected = tuple(symbols or [x[0] for x in INSTRUMENTS[:6]])
+    selected = tuple(dict.fromkeys(s for s in selected if s in available))[:6]
+    if len(selected) < 6:
+        selected += tuple(s for s in available if s not in selected)[:6-len(selected)]
+    to_start = []
+    start_news = False
+    with _lock:
+        for symbol in selected:
+            checked = _quote_checked_at.get(symbol, 0)
+            if now - checked >= QUOTE_REFRESH_SECONDS and symbol not in _quote_fetching:
+                _quote_fetching.add(symbol)
+                to_start.append(available[symbol])
+        if (_news is None or now - _news_at >= NEWS_SECONDS) and not _news_fetching:
+            _news_fetching = True
+            start_news = True
+        quotes = []
+        for symbol in selected:
+            quote = _quote_cache.get(symbol)
+            if quote is None:
+                instrument = available[symbol]
+                quote = {"symbol": symbol, "name": instrument[1], "kind": instrument[2],
+                         "error": "המחיר הראשון נטען ברקע"}
+            quotes.append(copy.deepcopy(quote))
+        news = copy.deepcopy(_news or {"items": [], "fetched_at": None,
+                                       "error": "הכותרות הראשונות נטענות ברקע"})
+        refreshing = bool(_quote_fetching or _news_fetching)
+    for instrument in to_start:
+        _start_daemon(_refresh_quote, instrument)
+    if start_news:
+        _start_daemon(_refresh_news)
+    quotes = [dict(q, commentary=explain_quote(q)) for q in quotes]
+    return {"fetched_at": iso(), "quotes": quotes, "news": news,
+            "catalog": [{"symbol":s,"name":n,"kind":k} for s,n,k in INSTRUMENTS],
+            "refresh_seconds": 10, "refreshing": refreshing, "streaming": False,
+            "notice": "התצוגה מתעדכנת כל 10 שניות; איסוף המחירים מתבצע ברקע. מקור ציבורי עשוי להתעכב או לא להגיב. נתוני ייחוס בלבד, לא שערי Plus500."}
 
 
 class SharedMonitorStore:

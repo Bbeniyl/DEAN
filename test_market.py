@@ -25,10 +25,12 @@ with patch('openai.OpenAI'), patch('threading.Thread.start'):
 
 class MarketTests(unittest.TestCase):
     def tearDown(self):
-        market._cached = None
-        market._cached_at = 0
+        market._quote_cache.clear()
+        market._quote_checked_at.clear()
+        market._quote_fetching.clear()
         market._news = None
         market._news_at = 0
+        market._news_fetching = False
 
     def payload(self, **values):
         meta = dict(symbol='AMZN', regularMarketPrice=105, chartPreviousClose=100,
@@ -126,14 +128,25 @@ class MarketTests(unittest.TestCase):
             self.assertEqual(c.get('/market').status_code, 200)
             self.assertEqual(c.post('/api/chat', json={'message': 'test'}).status_code, 403)
 
-    def test_shared_cache_avoids_repeated_network_requests(self):
-        with patch.object(market, 'get_quote', return_value={'error': 'unavailable'}) as quote, \
-             patch.object(market, 'get_news', return_value={'items': [], 'error': None}) as news:
+    def test_market_snapshot_returns_immediately_and_deduplicates_refresh_jobs(self):
+        with patch.object(market, '_start_daemon') as start:
             first = market.snapshot()
-            self.assertIs(first, market.snapshot())
-            self.assertEqual(quote.call_count, 6)
-            self.assertEqual(news.call_count, 1)
+            second = market.snapshot()
+            self.assertEqual(len(first['quotes']), 6)
+            self.assertTrue(first['refreshing'])
+            self.assertEqual(len(start.call_args_list), 7)
+            self.assertEqual(len(second['quotes']), 6)
+            self.assertEqual(len(start.call_args_list), 7)
             self.assertFalse(first['streaming'])
+
+    def test_provider_failure_keeps_last_price_and_marks_it_stale(self):
+        instrument = market.INSTRUMENTS[2]
+        market._quote_cache['AMZN'] = {'symbol': 'AMZN', 'price': 105, 'stale': False}
+        with patch.object(market, 'get_quote', return_value={'symbol':'AMZN','error':'offline'}):
+            market._refresh_quote(instrument)
+        self.assertEqual(market._quote_cache['AMZN']['price'], 105)
+        self.assertTrue(market._quote_cache['AMZN']['provider_offline'])
+        self.assertTrue(market._quote_cache['AMZN']['stale'])
 
     def test_hebrew_commands_and_home_page(self):
         self.assertEqual(maybe_handle_local_command('תזכור בדיקת עברית'), 'שמרתי בזיכרון: בדיקת עברית')
