@@ -89,6 +89,28 @@ class MarketTests(unittest.TestCase):
         self.assertFalse(items[0]['verified'])
         self.assertIsNone(items[0]['event_time'])
 
+    def test_news_coverage_never_claims_independent_verification(self):
+        body = b'''<rss><channel>
+          <item><title>S&amp;P 500 market story</title><link>https://news.google.com/rss/articles/1</link><pubDate>Mon, 19 Oct 2026 15:00:00 GMT</pubDate><source>Reuters</source></item>
+          <item><title>S&amp;P 500 market story</title><link>https://news.google.com/rss/articles/2</link><pubDate>Mon, 19 Oct 2026 15:01:00 GMT</pubDate><source>AP</source></item>
+        </channel></rss>'''
+        now = market.parsedate_to_datetime('Mon, 19 Oct 2026 16:00:00 GMT').timestamp()
+        items = market.parse_news(body, now)
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]['source_count'], 2)
+        self.assertFalse(items[0]['verified'])
+        self.assertIn('עדיין צריך לבדוק', items[0]['verification_label'])
+
+    def test_snapshot_uses_selected_assets_and_exposes_picker_catalog(self):
+        def quote(instrument):
+            return {'symbol':instrument[0], 'name':instrument[1], 'history':[], 'error':'offline'}
+        with patch.object(market, 'get_quote', side_effect=quote), \
+             patch.object(market, 'get_news', return_value={'items':[], 'error':None}):
+            result = market.snapshot(['NVDA','BTC-USD','NVDA','not-valid'])
+        self.assertEqual([q['symbol'] for q in result['quotes'][:2]], ['NVDA','BTC-USD'])
+        self.assertEqual(len(result['quotes']), 6)
+        self.assertIn({'symbol':'NVDA','name':'אנבידיה','kind':'מניה'}, result['catalog'])
+
     def test_provider_failure_is_not_fake_quote(self):
         with patch.object(market, 'fetch_bytes', side_effect=TimeoutError):
             quote = market.get_quote(market.INSTRUMENTS[0])
