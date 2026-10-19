@@ -54,6 +54,13 @@ class MarketTests(unittest.TestCase):
             with self.subTest(values=values), self.assertRaises(ValueError):
                 market.parse_quote(self.payload(**values), 'AMZN', 'אמזון', 'מניה', now=1_800_000_060)
 
+    def test_chart_keeps_real_points_and_rejects_missing_or_future_points(self):
+        payload = self.payload()
+        payload['chart']['result'][0].update(timestamp=[1799999900,1799999960,1800000900],
+            indicators={'quote':[{'close':[104,None,106]}]})
+        quote = market.parse_quote(payload, 'AMZN','אמזון','מניה',now=1800000060)
+        self.assertEqual(quote['history'], [[1799999900,104]])
+
     def test_news_dedup_dates_and_safe_links(self):
         body = b'''<rss><channel>
           <item><title>Market story</title><link>https://news.google.com/rss/articles/1</link><pubDate>Mon, 19 Oct 2026 15:00:00 GMT</pubDate><source>Reuters</source></item>
@@ -99,6 +106,46 @@ class MarketTests(unittest.TestCase):
             r = c.get('/')
             self.assertEqual(r.status_code, 200)
             self.assertIn('מעקב שוק', r.get_data(as_text=True))
+
+    def test_shared_view_requires_authentication_and_csrf(self):
+        with app.test_client() as c:
+            self.assertEqual(c.get('/api/market/shared-state').status_code,401)
+            self.assertEqual(c.post('/api/market/view',json={}).status_code,401)
+            with c.session_transaction() as session:
+                session['authenticated']=True
+            self.assertEqual(c.post('/api/market/view',json={}).status_code,403)
+
+    def test_shared_view_saves_only_server_dataset_after_render_ack(self):
+        one={'quotes':[{'symbol':'AMZN','price':105}], 'news':{'items':[]},'fetched_at':'first'}
+        two={**one, 'fetched_at':'second'}
+        with app.test_client() as c:
+            with c.session_transaction() as session:
+                session['authenticated']=True
+                session['csrf']='test-csrf'
+            with patch.object(market,'snapshot',return_value=one):
+                response=c.get('/api/market?monitor_id=testing-monitor-unique')
+            dataset=response.get_json()
+            self.assertTrue(dataset['sharing_available'])
+            sid=dataset['snapshot_id']
+            body=dict(monitor_id='testing-monitor-unique',snapshot_id=sid,selected_symbol='AMZN',state='monitoring',payload={'price':999999})
+            headers={'X-CSRF-Token':'test-csrf'}
+            self.assertEqual(c.post('/api/market/view',json=body,headers=headers).status_code,200)
+            saved=c.get('/api/market/shared-state').get_json()['view']
+            self.assertEqual(saved['snapshot']['quotes'][0]['price'],105)
+            self.assertEqual(saved['selected_symbol'],'AMZN')
+            with patch.object(market,'snapshot',return_value=two):
+                c.get('/api/market?monitor_id=testing-monitor-unique')
+            self.assertEqual(c.post('/api/market/view',json=body,headers=headers).status_code,409)
+            saved=c.get('/api/market/shared-state').get_json()['view']
+            self.assertEqual(saved['snapshot']['fetched_at'],'first')
+
+    def test_shared_view_validation(self):
+        with app.test_client() as c:
+            with c.session_transaction() as session:
+                session['authenticated']=True
+                session['csrf']='test-csrf'
+            response=c.post('/api/market/view',json={'monitor_id':'bad'},headers={'X-CSRF-Token':'test-csrf'})
+            self.assertEqual(response.status_code,400)
 
 
 if __name__ == '__main__':
