@@ -77,6 +77,27 @@ class MarketTests(unittest.TestCase):
         self.assertEqual(market.explain_quote({'history':[[1000,102],[1900,100]]})['tone'],'down')
         self.assertEqual(market.explain_quote({'history':[[1000,100],[1900,100.01]]})['tone'],'flat')
 
+    def test_commentary_provides_bounded_15_and_30_minute_scenarios(self):
+        points = [[1_800_000_000 + i * 60, 100 + i * .1] for i in range(61)]
+        note = market.explain_quote({'history': points})
+        self.assertEqual([x['minutes'] for x in note['horizons']], [15, 30])
+        self.assertIn('לא תחזית ודאית', note['horizons'][0]['basis'])
+        self.assertIn('טווח', note['horizons'][0]['risk'])
+
+    def test_per_asset_manual_refresh_only_starts_one_quote_job(self):
+        now = time.monotonic()
+        for instrument in market.INSTRUMENTS[:6]:
+            symbol = instrument[0]
+            market._quote_checked_at[symbol] = now
+            market._quote_cache[symbol] = {'symbol': symbol, 'price': 100, 'history': []}
+        market._news = {'items': [], 'error': None}
+        market._news_at = now
+        with patch.object(market, '_start_daemon') as start:
+            market.snapshot([x[0] for x in market.INSTRUMENTS[:6]], refresh_only=True,
+                            refresh_symbol='AMZN')
+        self.assertEqual(len(start.call_args_list), 1)
+        self.assertEqual(start.call_args[0][1][0], 'AMZN')
+
     def test_news_dedup_dates_and_safe_links(self):
         body = b'''<rss><channel>
           <item><title>S&amp;P 500 market story</title><link>https://news.google.com/rss/articles/1</link><pubDate>Mon, 19 Oct 2026 15:00:00 GMT</pubDate><source>Reuters</source></item>
@@ -138,6 +159,39 @@ class MarketTests(unittest.TestCase):
             self.assertEqual(len(second['quotes']), 6)
             self.assertEqual(len(start.call_args_list), 7)
             self.assertFalse(first['streaming'])
+
+    def test_forced_snapshot_bypasses_quote_and_news_cache_cooldowns(self):
+        now = time.monotonic()
+        for instrument in market.INSTRUMENTS[:6]:
+            symbol = instrument[0]
+            market._quote_checked_at[symbol] = now
+            market._quote_cache[symbol] = {'symbol': symbol, 'price': 100, 'history': []}
+        market._news = {'items': [], 'error': None}
+        market._news_at = now
+        with patch.object(market, '_start_daemon') as start:
+            result = market.snapshot(force=True)
+        self.assertEqual(len(result['quotes']), 6)
+        self.assertEqual(len(start.call_args_list), 7)
+
+    def test_refresh_endpoint_requests_forced_provider_update(self):
+        with app.test_client() as c:
+            with c.session_transaction() as session:
+                session['authenticated'] = True
+            with patch.object(market, 'snapshot', return_value={'quotes': []}) as snap:
+                response = c.get('/api/market?force=1')
+            self.assertEqual(response.status_code, 200)
+            snap.assert_called_once_with(None, force=True, refresh_only=False,
+                                         force_news=False, refresh_symbol=None)
+
+    def test_refresh_endpoint_targets_only_requested_asset(self):
+        with app.test_client() as c:
+            with c.session_transaction() as session:
+                session['authenticated'] = True
+            with patch.object(market, 'snapshot', return_value={'quotes': []}) as snap:
+                response = c.get('/api/market?refresh_only=1&refresh_symbol=AMZN&symbol=AMZN')
+            self.assertEqual(response.status_code, 200)
+            snap.assert_called_once_with(['AMZN'], force=False, refresh_only=True,
+                                         force_news=False, refresh_symbol='AMZN')
 
     def test_provider_failure_keeps_last_price_and_marks_it_stale(self):
         instrument = market.INSTRUMENTS[2]
