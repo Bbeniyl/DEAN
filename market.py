@@ -138,6 +138,25 @@ def explain_quote(quote):
                 'interpretation':'לא נקבע כיוון קצר מהנתון הבודד.',
                 'watch':'ממתינים לנקודות נוספות מהמקור.', 'method':'סיכום נתוני מחיר בלבד'}
     end = points[-1][0]
+    horizons = []
+    for minutes in (15, 30):
+        window = [p for p in points if p[0] >= end - minutes * 60]
+        if len(window) < 5 or window[-1][0] - window[0][0] < minutes * 60 * .65:
+            horizons.append({'minutes': minutes, 'label': 'אין מספיק נתונים',
+                             'basis': f'צריך רצף מחיר רחב יותר כדי לנתח חלון של {minutes} דקות.',
+                             'risk': 'לא ניתן לאמוד תנודתיות בחלון הזה.'})
+            continue
+        first, last = window[0], window[-1]
+        move_h = (last[1] / first[1] - 1) * 100
+        tone_h = 'עלייה' if move_h > .05 else 'ירידה' if move_h < -.05 else 'לא ברורה'
+        high_h, low_h = max(p[1] for p in window), min(p[1] for p in window)
+        spread_h = (high_h / low_h - 1) * 100 if low_h > 0 else None
+        horizons.append({'minutes': minutes, 'label': f'נטייה קודמת: {tone_h}',
+                         'basis': f'בחלון שנמדד המחיר השתנה {move_h:+.2f}% על פני {round((last[0]-first[0])/60)} דקות. זו קריאה של מה שקרה, לא תחזית ודאית.',
+                         'risk': (f'הטווח שנרשם: {low_h:,.2f}–{high_h:,.2f}' + (f' ({spread_h:.2f}%).' if spread_h is not None else '.') + ' פריצה או שבירה של הטווח עשויה לשנות את התמונה.'),
+                         'tone': 'up' if tone_h == 'עלייה' else 'down' if tone_h == 'ירידה' else 'flat',
+                         'change_percent': move_h, 'low': low_h, 'high': high_h,
+                         'from_time': iso(first[0]), 'to_time': iso(last[0])})
     recent = [p for p in points if p[0] >= end-900]
     if len(recent)<2 or recent[-1][0]-recent[0][0]<300:
         return {'label':'חלון קצר מדי','tone':'unknown',
@@ -167,7 +186,8 @@ def explain_quote(quote):
     return {'label':label,'tone':tone,'observation':f'שינוי של {move:+.2f}% לאורך {minutes} דקות בנתונים האחרונים.',
             'interpretation':interpretation,'watch':watch,'method':'סיכום נתוני מחיר בלבד',
             'scenario':scenario,'risk':risk,
-            'from_time':iso(start[0]),'to_time':iso(finish[0]),'window_change_percent':move}
+            'from_time':iso(start[0]),'to_time':iso(finish[0]),'window_change_percent':move,
+            'horizons': horizons}
 
 
 def parse_news(body, now=None):
@@ -261,8 +281,12 @@ def _start_daemon(target, *args):
                      name="dean-market-refresh").start()
 
 
-def snapshot(symbols=None):
-    """Return immediately from cache; refresh prices and headlines off-request."""
+def snapshot(symbols=None, force=False, refresh_only=False, force_news=False, refresh_symbol=None):
+    """Return the latest cached view and refresh providers off-request.
+
+    A forced request skips the normal quote/news cache age check, but still
+    returns immediately. The browser can poll briefly for the completed fetch.
+    """
     global _news_fetching
     now = time.monotonic()
     available = {item[0]: item for item in INSTRUMENTS}
@@ -275,10 +299,12 @@ def snapshot(symbols=None):
     with _lock:
         for symbol in selected:
             checked = _quote_checked_at.get(symbol, 0)
-            if now - checked >= QUOTE_REFRESH_SECONDS and symbol not in _quote_fetching:
+            should_refresh = (symbol == refresh_symbol if refresh_only and refresh_symbol
+                              else force if refresh_only else (force or now - checked >= QUOTE_REFRESH_SECONDS))
+            if should_refresh and symbol not in _quote_fetching:
                 _quote_fetching.add(symbol)
                 to_start.append(available[symbol])
-        if (_news is None or now - _news_at >= NEWS_SECONDS) and not _news_fetching:
+        if (force_news or (not refresh_only and (force or _news is None or now - _news_at >= NEWS_SECONDS))) and not _news_fetching:
             _news_fetching = True
             start_news = True
         quotes = []
@@ -299,8 +325,8 @@ def snapshot(symbols=None):
     quotes = [dict(q, commentary=explain_quote(q)) for q in quotes]
     return {"fetched_at": iso(), "quotes": quotes, "news": news,
             "catalog": [{"symbol":s,"name":n,"kind":k} for s,n,k in INSTRUMENTS],
-            "refresh_seconds": 10, "refreshing": refreshing, "streaming": False,
-            "notice": "התצוגה מתעדכנת כל 10 שניות; איסוף המחירים מתבצע ברקע. מקור ציבורי עשוי להתעכב או לא להגיב. נתוני ייחוס בלבד, לא שערי Plus500."}
+            "refresh_seconds": 300, "refreshing": refreshing, "streaming": False,
+            "notice": "כל כרטיס מחיר מתרענן לפי בקשה. חדשות מתרעננות בנפרד לפי בחירה, כל עוד העמוד פתוח. איסוף המחירים מתבצע ברקע; מקור ציבורי עשוי להתעכב או לא להגיב. נתוני ייחוס בלבד, לא שערי Plus500."}
 
 
 class SharedMonitorStore:
@@ -413,7 +439,12 @@ def register_market(app, require_login, require_csrf=None, csrf_token=None, get_
     def data():
         raw_symbols = request.args.getlist('symbol')
         symbols = raw_symbols[:6] if raw_symbols else None
-        result = dict(snapshot(symbols))
+        force_symbol = request.args.get('refresh_symbol', '')
+        refresh_only = request.args.get('refresh_only') == '1' or bool(force_symbol)
+        force = request.args.get('force') == '1'
+        force_news = request.args.get('force_news') == '1'
+        result = dict(snapshot(symbols, force=force, refresh_only=refresh_only,
+                               force_news=force_news, refresh_symbol=force_symbol or None))
         monitor_id = request.args.get('monitor_id', '')
         result['sharing_available'] = shared is not None
         if shared and valid_monitor_id(monitor_id):
