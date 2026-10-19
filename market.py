@@ -97,13 +97,51 @@ def parse_quote(payload, symbol, name, kind, now=None):
 
 def get_quote(instrument):
     symbol, name, kind = instrument
-    url = "https://query1.finance.yahoo.com/v8/finance/chart/" + urllib.parse.quote(symbol, safe="")
-    url += "?interval=1m&range=1d"
-    try:
-        return parse_quote(json.loads(fetch_bytes(url)), symbol, name, kind)
-    except Exception:
-        # Do not leak request internals, or replace unavailable prices with demo values.
-        return {"symbol": symbol, "name": name, "kind": kind, "error": "לא התקבל מחיר תקין מהספק"}
+    for host in ('query1.finance.yahoo.com', 'query2.finance.yahoo.com'):
+        url = 'https://' + host + '/v8/finance/chart/' + urllib.parse.quote(symbol, safe='')
+        try:
+            return parse_quote(json.loads(fetch_bytes(url+'?interval=1m&range=1d')), symbol, name, kind)
+        except Exception:
+            continue
+    return {"symbol": symbol, "name": name, "kind": kind, "error": "לא התקבל מחיר תקין מהספק"}
+
+
+def explain_quote(quote):
+    """Deterministic observations of supplied prices, not an AI forecast."""
+    if quote.get('error'):
+        return {'label':'ממתין למקור', 'tone':'unknown',
+                'observation':'מקור המחיר לא החזיר נתון מאומת בעדכון הזה.',
+                'interpretation':'אין כרגע בסיס לפענוח התנועה.',
+                'watch':'ננסה שוב בעדכון הבא. אין מחיר חלופי מומצא.',
+                'method':'סיכום נתוני מחיר בלבד'}
+    points = quote.get('history', [])
+    if len(points) < 2:
+        return {'label':'תמונה חלקית','tone':'unknown',
+                'observation':'התקבל מחיר, אך אין מספיק נקודות גרף להשוואה.',
+                'interpretation':'לא נקבע כיוון קצר מהנתון הבודד.',
+                'watch':'ממתינים לנקודות נוספות מהמקור.', 'method':'סיכום נתוני מחיר בלבד'}
+    end = points[-1][0]
+    recent = [p for p in points if p[0] >= end-900]
+    if len(recent)<2 or recent[-1][0]-recent[0][0]<300:
+        return {'label':'חלון קצר מדי','tone':'unknown',
+                'observation':'אין רצף של לפחות חמש דקות בחלון האחרון.',
+                'interpretation':'לא נקבע כיוון קצר ללא מספיק נתונים.',
+                'watch':'נבדוק שוב אחרי שהמקור יחזיר רצף מחירים.', 'method':'סיכום נתוני מחיר בלבד'}
+    start, finish = recent[0], recent[-1]
+    move = (finish[1]/start[1]-1)*100
+    minutes = round((finish[0]-start[0])/60)
+    tone = 'up' if move>.05 else 'down' if move<-.05 else 'flat'
+    label = {'up':'עלייה בחלון האחרון','down':'ירידה בחלון האחרון','flat':'תנועה מתונה בחלון האחרון'}[tone]
+    interpretation = {'up':'המחיר בסוף החלון גבוה מתחילתו. זה תומך בתיאור של התחזקות קצרה.',
+        'down':'המחיר בסוף החלון נמוך מתחילתו. זה תומך בתיאור של חולשה קצרה.',
+        'flat':'השינוי בין תחילת החלון לסופו קטן מ־0.05%. אין מכאן הכרעה ברורה.'}[tone]
+    if quote.get('stale'):
+        interpretation += ' הנתונים קודמים ואינם משקפים בהכרח את הרגע הנוכחי.'
+    watch = ('חזרה אל מחיר תחילת החלון, '+format(start[1],',.2f')+', תחליש את תיאור התנועה הזו.'
+             if tone!='flat' else 'נרצה לראות שינוי ברור בכמה דגימות, ולא להסתמך על נקודה אחת.')
+    return {'label':label,'tone':tone,'observation':f'שינוי של {move:+.2f}% לאורך {minutes} דקות בנתונים האחרונים.',
+            'interpretation':interpretation,'watch':watch,'method':'סיכום נתוני מחיר בלבד',
+            'from_time':iso(start[0]),'to_time':iso(finish[0]),'window_change_percent':move}
 
 
 def parse_news(body, now=None):
@@ -112,6 +150,8 @@ def parse_news(body, now=None):
     items, seen = [], set()
     for item in root.findall("./channel/item"):
         title = (item.findtext("title") or "").strip()[:400]
+        if not re.search(r's&p|nasdaq|wall street|stock[s ]|cac\s?40|amazon|\bamzn\b|\bgold\b|bullion|\boil\b|crude|arabica|coffee|inflation|federal reserve|\bfed\b|\becb\b|interest rate|hormuz|data cent|ai[- ](?:linked|stocks|debt)|french (?:bonds|budget|markets)|france.*(?:riot|unrest|budget|bond|stocks)',title,re.I):
+            continue
         link = (item.findtext("link") or "").strip()
         try:
             parsed = urllib.parse.urlparse(link)
@@ -150,6 +190,7 @@ def snapshot():
             return _cached
         with ThreadPoolExecutor(max_workers=6) as pool:
             quotes = list(pool.map(get_quote, INSTRUMENTS))
+        quotes = [dict(q, commentary=explain_quote(q)) for q in quotes]
         if _news is None or now - _news_at >= NEWS_SECONDS:
             _news = get_news()
             _news_at = time.monotonic()
@@ -233,7 +274,7 @@ def log_shared_view(view):
     points = chosen.get('history', [])
     summary = {'viewed_at':view['viewed_at'], 'selected_symbol':view['selected_symbol'],
         'screen_state':view['screen_state'], 'fetched_at':dataset.get('fetched_at'),
-        'quotes':[{k:q.get(k) for k in ('symbol','name','price','display_unit','change_percent','quote_time','error')}
+        'quotes':[{k:q.get(k) for k in ('symbol','name','price','display_unit','change_percent','quote_time','error','commentary')}
                   for q in quotes],
         'headlines':[{k:(str(n.get(k,''))[:240] if k=='title' else n.get(k))
                      for k in ('title','source','published_at')}

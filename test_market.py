@@ -61,12 +61,27 @@ class MarketTests(unittest.TestCase):
         quote = market.parse_quote(payload, 'AMZN','אמזון','מניה',now=1800000060)
         self.assertEqual(quote['history'], [[1799999900,104]])
 
+    def test_commentary_handles_partial_and_old_data_without_a_forecast(self):
+        self.assertEqual(market.explain_quote({'error':'missing'})['tone'],'unknown')
+        self.assertEqual(market.explain_quote({'history':[[1000,100]]})['tone'],'unknown')
+        q={'history':[[1000,100],[1300,101],[1900,102]],'stale':True}
+        note=market.explain_quote(q)
+        self.assertEqual(note['tone'],'up')
+        self.assertAlmostEqual(note['window_change_percent'],2)
+        self.assertIn('קודמים',note['interpretation'])
+        self.assertEqual(note['method'],'סיכום נתוני מחיר בלבד')
+
+    def test_commentary_detects_downward_and_flat_windows(self):
+        self.assertEqual(market.explain_quote({'history':[[1000,102],[1900,100]]})['tone'],'down')
+        self.assertEqual(market.explain_quote({'history':[[1000,100],[1900,100.01]]})['tone'],'flat')
+
     def test_news_dedup_dates_and_safe_links(self):
         body = b'''<rss><channel>
-          <item><title>Market story</title><link>https://news.google.com/rss/articles/1</link><pubDate>Mon, 19 Oct 2026 15:00:00 GMT</pubDate><source>Reuters</source></item>
-          <item><title>Market story</title><link>https://news.google.com/rss/articles/2</link><pubDate>Mon, 19 Oct 2026 15:00:00 GMT</pubDate></item>
+          <item><title>S&amp;P 500 market story</title><link>https://news.google.com/rss/articles/1</link><pubDate>Mon, 19 Oct 2026 15:00:00 GMT</pubDate><source>Reuters</source></item>
+          <item><title>S&amp;P 500 market story</title><link>https://news.google.com/rss/articles/2</link><pubDate>Mon, 19 Oct 2026 15:00:00 GMT</pubDate></item>
           <item><title>Bad link</title><link>javascript:alert(1)</link><pubDate>Mon, 19 Oct 2026 15:00:00 GMT</pubDate></item>
           <item><title>Old</title><link>https://news.google.com/rss/articles/3</link><pubDate>Mon, 12 Oct 2026 15:00:00 GMT</pubDate></item>
+          <item><title>Florida leads the college basketball poll</title><link>https://news.google.com/rss/articles/4</link><pubDate>Mon, 19 Oct 2026 15:00:00 GMT</pubDate></item>
         </channel></rss>'''
         now = market.parsedate_to_datetime('Mon, 19 Oct 2026 16:00:00 GMT').timestamp()
         items = market.parse_news(body, now)
