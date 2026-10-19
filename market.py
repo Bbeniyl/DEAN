@@ -1,6 +1,9 @@
 """Read-only, on-demand market monitor. Never submits trading orders or AI calls."""
 import json
 import math
+import re
+import secrets
+from contextlib import closing
 import threading
 import time
 import urllib.parse
@@ -10,7 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 
-from flask import Blueprint, jsonify, render_template
+from flask import Blueprint, jsonify, render_template, request
 
 INSTRUMENTS = (
     ("^GSPC", "S&P 500", "מדד מזומן"),
@@ -67,9 +70,19 @@ def parse_quote(payload, symbol, name, kind, now=None):
     if price is None or price <= 0 or stamp is None or stamp > now + 60 or stamp < 946684800:
         raise ValueError("invalid_quote")
     age = max(0, int(now - stamp))
+    result = results[0]
+    history = []
+    indicators = result.get('indicators', {}).get('quote', [])
+    closes = indicators[0].get('close', []) if indicators else []
+    for timestamp, close in zip(result.get('timestamp', []), closes):
+        timestamp, close = finite(timestamp), finite(close)
+        if timestamp and close and close > 0 and 946684800 < timestamp <= now + 60:
+            history.append([timestamp, close])
     return {
         "symbol": symbol, "name": name, "kind": kind, "price": price,
         "currency": meta.get("currency", ""),
+        "display_unit": {'^GSPC':'נקודות','^FCHI':'נקודות','AMZN':'דולר למניה',
+                         'GC=F':'דולר לאונקיה','CL=F':'דולר לחבית','KC=F':'סנט לליברה'}.get(symbol, ''),
         "change_percent": (price / previous - 1) * 100 if previous and previous > 0 else None,
         "quote_time": iso(stamp), "age_seconds": age, "stale": age > 180,
         "exchange": meta.get("exchangeName", ""),
@@ -78,6 +91,7 @@ def parse_quote(payload, symbol, name, kind, now=None):
         "source": "Yahoo Finance — מקור ציבורי לא רשמי; עיכוב אינו מאומת",
         "source_url": "https://finance.yahoo.com/quote/" + urllib.parse.quote(symbol, safe=""),
         "error": None,
+        "history": sorted(history, key=lambda p: p[0])[-420:],
     }
 
 
@@ -146,19 +160,115 @@ def snapshot():
         return _cached
 
 
-def register_market(app, require_login):
+class SharedMonitorStore:
+    """Latest delivered and browser-acknowledged dataset, never browser credentials."""
+    def __init__(self, get_db, postgres=False):
+        self.get_db = get_db
+        self.placeholder = '%s' if postgres else '?'
+        with closing(get_db()) as con, con:
+            con.execute('''CREATE TABLE IF NOT EXISTS market_monitor_views(
+                monitor_id TEXT PRIMARY KEY, snapshot_id TEXT NOT NULL,
+                payload TEXT NOT NULL, delivered_at TEXT NOT NULL,
+                viewed_at TEXT, selected_symbol TEXT, screen_state TEXT,
+                acknowledged_payload TEXT, updated_at TEXT NOT NULL)''')
+
+    def delivered(self, monitor_id, payload):
+        snapshot_id = secrets.token_urlsafe(18)
+        stamp = iso()
+        marks = ','.join([self.placeholder] * 5)
+        # Keep the last acknowledged data until the next render is acknowledged.
+        with closing(self.get_db()) as con, con:
+            con.execute(f'''INSERT INTO market_monitor_views
+                (monitor_id,snapshot_id,payload,delivered_at,updated_at)
+                VALUES({marks}) ON CONFLICT(monitor_id) DO UPDATE SET
+                snapshot_id=excluded.snapshot_id,payload=excluded.payload,
+                delivered_at=excluded.delivered_at,updated_at=excluded.updated_at''',
+                (monitor_id, snapshot_id, json.dumps(payload, ensure_ascii=False), stamp, stamp))
+        return snapshot_id
+
+    def acknowledge(self, monitor_id, snapshot_id, selected_symbol, state):
+        p = self.placeholder
+        stamp = iso()
+        with closing(self.get_db()) as con, con:
+            cursor = con.execute(f'''UPDATE market_monitor_views SET
+                viewed_at={p},selected_symbol={p},screen_state={p},
+                acknowledged_payload=payload,updated_at={p}
+                WHERE monitor_id={p} AND snapshot_id={p}''',
+                (stamp, selected_symbol, state, stamp, monitor_id, snapshot_id))
+            return cursor.rowcount == 1
+
+    def latest(self):
+        with closing(self.get_db()) as con, con:
+            row = con.execute('''SELECT monitor_id,viewed_at,selected_symbol,screen_state,
+                acknowledged_payload FROM market_monitor_views
+                WHERE viewed_at IS NOT NULL ORDER BY viewed_at DESC LIMIT 1''').fetchone()
+        if row is None:
+            return None
+        return {'monitor_id': row['monitor_id'], 'viewed_at': row['viewed_at'],
+                'selected_symbol': row['selected_symbol'], 'screen_state': row['screen_state'],
+                'snapshot': json.loads(row['acknowledged_payload'])}
+
+
+def valid_monitor_id(value):
+    return isinstance(value, str) and re.fullmatch(r'[a-zA-Z0-9-]{12,64}', value) is not None
+
+
+def register_market(app, require_login, require_csrf=None, csrf_token=None, get_db=None, postgres=False):
     bp = Blueprint("market", __name__, template_folder="templates")
+    shared = None
+    if get_db:
+        try:
+            shared = SharedMonitorStore(get_db, postgres)
+        except Exception:
+            app.logger.error('Market snapshot storage is unavailable')
 
     @bp.get("/market")
     @require_login
     def page():
-        return render_template("market.html")
+        response = app.make_response(render_template("market.html", csrf=csrf_token() if csrf_token else ''))
+        response.headers['Cache-Control'] = 'no-store'
+        return response
 
     @bp.get("/api/market")
     @require_login
     def data():
-        response = jsonify(snapshot())
+        result = dict(snapshot())
+        monitor_id = request.args.get('monitor_id', '')
+        result['sharing_available'] = shared is not None
+        if shared and valid_monitor_id(monitor_id):
+            try:
+                result['snapshot_id'] = shared.delivered(monitor_id, result)
+            except Exception:
+                result['sharing_available'] = False
+        response = jsonify(result)
         response.headers["Cache-Control"] = "no-store"
         return response
+
+    if shared and require_csrf:
+        @bp.post('/api/market/view')
+        @require_csrf
+        def acknowledge_view():
+            body = request.get_json(silent=True) or {}
+            if not isinstance(body, dict):
+                return jsonify(error='invalid_view'), 400
+            monitor_id, snapshot_id = body.get('monitor_id'), body.get('snapshot_id')
+            symbol, state = body.get('selected_symbol'), body.get('state')
+            if (not valid_monitor_id(monitor_id) or not isinstance(snapshot_id, str)
+                    or len(snapshot_id) > 64 or symbol not in {x[0] for x in INSTRUMENTS}
+                    or state not in {'monitoring', 'paused', 'stopped'}):
+                return jsonify(error='invalid_view'), 400
+            try:
+                if not shared.acknowledge(monitor_id, snapshot_id, symbol, state):
+                    return jsonify(error='snapshot_changed'), 409
+                return jsonify(ok=True, saved_at=iso())
+            except Exception:
+                return jsonify(error='storage_unavailable'), 503
+
+        @bp.get('/api/market/shared-state')
+        @require_login
+        def shared_state():
+            response = jsonify(view=shared.latest())
+            response.headers['Cache-Control'] = 'no-store'
+            return response
 
     app.register_blueprint(bp)
