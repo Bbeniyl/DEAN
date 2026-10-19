@@ -1277,6 +1277,7 @@ textarea:focus{border-color:rgba(105,236,192,.52);box-shadow:0 0 0 4px rgba(105,
 </form>
 </div>
 <div class="tools">
+<a class="tool" href="/market">מעקב שוק</a>
 <button class="tool" type="button" id="mic">🎙️ דבר</button>
 <button class="tool" type="button" id="liveVoice">🗣️ שיחה חיה</button>
 <button class="tool" type="button" id="read">🔊 הקרא</button>
@@ -2540,6 +2541,9 @@ def chat():
     ).start()
 
     return jsonify(answer=answer)
+
+from market import register_market
+register_market(app, require_login)
 
 if __name__ == "__main__":
     app.run(
