@@ -208,6 +208,42 @@ class SharedMonitorStore:
                 'selected_symbol': row['selected_symbol'], 'screen_state': row['screen_state'],
                 'snapshot': json.loads(row['acknowledged_payload'])}
 
+    def for_monitor(self, monitor_id):
+        with closing(self.get_db()) as con, con:
+            row = con.execute(f'''SELECT viewed_at,selected_symbol,screen_state,acknowledged_payload
+                FROM market_monitor_views WHERE monitor_id={self.placeholder} AND viewed_at IS NOT NULL''',
+                (monitor_id,)).fetchone()
+        if row is None:
+            return None
+        return {'viewed_at':row['viewed_at'], 'selected_symbol':row['selected_symbol'],
+                'screen_state':row['screen_state'], 'snapshot':json.loads(row['acknowledged_payload'])}
+
+
+def log_shared_view(view):
+    """Private host logs are readable through the user's connected Render tool.
+
+    No authentication tokens, account balances, positions or other tabs are logged.
+    Full chart samples remain in the private database; the log is a bounded summary.
+    """
+    if not view:
+        return
+    dataset = view['snapshot']
+    quotes = dataset.get('quotes', [])
+    chosen = next((q for q in quotes if q['symbol'] == view['selected_symbol']), {})
+    points = chosen.get('history', [])
+    summary = {'viewed_at':view['viewed_at'], 'selected_symbol':view['selected_symbol'],
+        'screen_state':view['screen_state'], 'fetched_at':dataset.get('fetched_at'),
+        'quotes':[{k:q.get(k) for k in ('symbol','name','price','display_unit','change_percent','quote_time','error')}
+                  for q in quotes],
+        'headlines':[{k:(str(n.get(k,''))[:240] if k=='title' else n.get(k))
+                     for k in ('title','source','published_at')}
+                     for n in dataset.get('news',{}).get('items',[])[:12]],
+        'chart_summary':{'points':len(points),'first':points[0] if points else None,
+            'last':points[-1] if points else None,
+            'low':min((p[1] for p in points),default=None),
+            'high':max((p[1] for p in points),default=None)}}
+    print('DEAN_MARKET_VIEW '+json.dumps(summary,ensure_ascii=False,separators=(',',':')),flush=True)
+
 
 def valid_monitor_id(value):
     return isinstance(value, str) and re.fullmatch(r'[a-zA-Z0-9-]{12,64}', value) is not None
@@ -260,6 +296,7 @@ def register_market(app, require_login, require_csrf=None, csrf_token=None, get_
             try:
                 if not shared.acknowledge(monitor_id, snapshot_id, symbol, state):
                     return jsonify(error='snapshot_changed'), 409
+                log_shared_view(shared.for_monitor(monitor_id))
                 return jsonify(ok=True, saved_at=iso())
             except Exception:
                 return jsonify(error='storage_unavailable'), 503
