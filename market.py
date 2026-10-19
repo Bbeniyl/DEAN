@@ -22,12 +22,23 @@ INSTRUMENTS = (
     ("GC=F", "זהב", "חוזה עתידי — מועד החוזה לפי הספק"),
     ("CL=F", "נפט WTI", "חוזה עתידי — מועד החוזה לפי הספק"),
     ("KC=F", "קפה ערביקה", "חוזה עתידי — מועד החוזה לפי הספק"),
+    ("AAPL", "אפל", "מניה"), ("MSFT", "מיקרוסופט", "מניה"),
+    ("NVDA", "אנבידיה", "מניה"), ("GOOGL", "אלפאבית גוגל", "מניה"),
+    ("META", "מטא", "מניה"), ("TSLA", "טסלה", "מניה"),
+    ("NFLX", "נטפליקס", "מניה"), ("BRK-B", "ברקשייר האת׳וויי", "מניה"),
+    ("JPM", "ג׳יי פי מורגן", "מניה"), ("AVGO", "ברודקום", "מניה"),
+    ("NQ=F", "נאסד״ק 100", "חוזה עתידי — מועד החוזה לפי הספק"),
+    ("YM=F", "דאו ג׳ונס", "חוזה עתידי — מועד החוזה לפי הספק"),
+    ("SI=F", "כסף", "חוזה עתידי — מועד החוזה לפי הספק"),
+    ("NG=F", "גז טבעי", "חוזה עתידי — מועד החוזה לפי הספק"),
+    ("BTC-USD", "ביטקוין", "נכס דיגיטלי"),
 )
 CACHE_SECONDS = 60
 NEWS_SECONDS = 300
 _lock = threading.Lock()
 _cached = None
 _cached_at = 0.0
+_cached_key = None
 _news = None
 _news_at = 0.0
 
@@ -82,7 +93,12 @@ def parse_quote(payload, symbol, name, kind, now=None):
         "symbol": symbol, "name": name, "kind": kind, "price": price,
         "currency": meta.get("currency", ""),
         "display_unit": {'^GSPC':'נקודות','^FCHI':'נקודות','AMZN':'דולר למניה',
-                         'GC=F':'דולר לאונקיה','CL=F':'דולר לחבית','KC=F':'סנט לליברה'}.get(symbol, ''),
+                         'AAPL':'דולר למניה','MSFT':'דולר למניה','NVDA':'דולר למניה',
+                         'GOOGL':'דולר למניה','META':'דולר למניה','TSLA':'דולר למניה',
+                         'NFLX':'דולר למניה','BRK-B':'דולר למניה','JPM':'דולר למניה',
+                         'AVGO':'דולר למניה','NQ=F':'נקודות','YM=F':'נקודות',
+                         'GC=F':'דולר לאונקיה','CL=F':'דולר לחבית','KC=F':'סנט לליברה',
+                         'SI=F':'דולר לאונקיה','NG=F':'דולר ליחידה','BTC-USD':'דולר לביטקוין'}.get(symbol, ''),
         "change_percent": (price / previous - 1) * 100 if previous and previous > 0 else None,
         "quote_time": iso(stamp), "age_seconds": age, "stale": age > 180,
         "exchange": meta.get("exchangeName", ""),
@@ -126,7 +142,9 @@ def explain_quote(quote):
         return {'label':'חלון קצר מדי','tone':'unknown',
                 'observation':'אין רצף של לפחות חמש דקות בחלון האחרון.',
                 'interpretation':'לא נקבע כיוון קצר ללא מספיק נתונים.',
-                'watch':'נבדוק שוב אחרי שהמקור יחזיר רצף מחירים.', 'method':'סיכום נתוני מחיר בלבד'}
+                'watch':'נבדוק שוב אחרי שהמקור יחזיר רצף מחירים.',
+                'scenario':'אין מספיק נקודות לבנות תרחישים.','risk':'אין לקבוע פעולה מהנתון החלקי.',
+                'method':'סיכום נתוני מחיר בלבד'}
     start, finish = recent[0], recent[-1]
     move = (finish[1]/start[1]-1)*100
     minutes = round((finish[0]-start[0])/60)
@@ -139,15 +157,22 @@ def explain_quote(quote):
         interpretation += ' הנתונים קודמים ואינם משקפים בהכרח את הרגע הנוכחי.'
     watch = ('חזרה אל מחיר תחילת החלון, '+format(start[1],',.2f')+', תחליש את תיאור התנועה הזו.'
              if tone!='flat' else 'נרצה לראות שינוי ברור בכמה דגימות, ולא להסתמך על נקודה אחת.')
+    high=max(p[1] for p in recent); low=min(p[1] for p in recent)
+    width=(high/low-1)*100 if low>0 else None
+    scenario=(f'תרחיש התחזקות: רק פריצה מעל {high:,.2f} שתישאר גם בעדכונים הבאים תחזק אותו. '
+              f'תרחיש היחלשות: ירידה מתחת {low:,.2f}. בתוך הטווח, התנועה עדיין לא הכריעה.' )
+    risk=(f'הטווח בחלון היה {width:.2f}%. זה מתאר תנודה היסטורית קצרה, לא הפסד צפוי ולא סכום סיכון אישי.'
+          if width is not None else 'אין די מידע להערכת סיכון.')
     return {'label':label,'tone':tone,'observation':f'שינוי של {move:+.2f}% לאורך {minutes} דקות בנתונים האחרונים.',
             'interpretation':interpretation,'watch':watch,'method':'סיכום נתוני מחיר בלבד',
+            'scenario':scenario,'risk':risk,
             'from_time':iso(start[0]),'to_time':iso(finish[0]),'window_change_percent':move}
 
 
 def parse_news(body, now=None):
     now = time.time() if now is None else now
     root = ET.fromstring(body)
-    items, seen = [], set()
+    items, grouped = [], {}
     for item in root.findall("./channel/item"):
         title = (item.findtext("title") or "").strip()[:400]
         if not re.search(r's&p|nasdaq|wall street|stock[s ]|cac\s?40|amazon|\bamzn\b|\bgold\b|bullion|\boil\b|crude|arabica|coffee|inflation|federal reserve|\bfed\b|\becb\b|interest rate|hormuz|data cent|ai[- ](?:linked|stocks|debt)|french (?:bonds|budget|markets)|france.*(?:riot|unrest|budget|bond|stocks)',title,re.I):
@@ -160,13 +185,22 @@ def parse_news(body, now=None):
             published = parsedate_to_datetime(item.findtext("pubDate") or "").timestamp()
         except (ValueError, TypeError, OverflowError):
             continue
-        if not title or title.casefold() in seen or published > now + 60 or now - published > 86400:
+        if not title or published > now + 60 or now - published > 86400:
             continue
-        seen.add(title.casefold())
         source = item.find("source")
-        items.append({"title": title, "url": link, "published_at": iso(published),
-                      "source": source.text if source is not None else "מקור לא צוין",
-                      "event_time": None, "verified": False})
+        source_name = source.text.strip() if source is not None and source.text else "מקור לא צוין"
+        key = title.casefold()
+        if key not in grouped:
+            grouped[key] = {"title": title, "url": link, "published_at": iso(published),
+                            "source": source_name, "sources": [source_name],
+                            "event_time": None, "verified": False,
+                            "verification_label": "לא אומת מול המקור המקורי"}
+            items.append(grouped[key])
+        elif source_name not in grouped[key]["sources"] and source_name != "מקור לא צוין":
+            grouped[key]["sources"].append(source_name)
+            grouped[key]["verification_label"] = "אותה כותרת הופיעה בכמה כלי תקשורת; עדיין צריך לבדוק מקור מקורי"
+    for item in items:
+        item["source_count"] = len(item["sources"])
     return sorted(items, key=lambda item: item["published_at"], reverse=True)[:12]
 
 
@@ -182,22 +216,29 @@ def get_news():
         return {"items": [], "fetched_at": iso(), "error": "מקור החדשות אינו זמין כרגע"}
 
 
-def snapshot():
-    global _cached, _cached_at, _news, _news_at
+def snapshot(symbols=None):
+    global _cached, _cached_at, _cached_key, _news, _news_at
     with _lock:
         now = time.monotonic()
-        if _cached is not None and now - _cached_at < CACHE_SECONDS:
+        available = {item[0]: item for item in INSTRUMENTS}
+        selected = tuple(symbols or [x[0] for x in INSTRUMENTS[:6]])
+        selected = tuple(dict.fromkeys(s for s in selected if s in available))[:6]
+        if len(selected) < 6:
+            selected += tuple(s for s in available if s not in selected)[:6-len(selected)]
+        if _cached is not None and selected == _cached_key and now - _cached_at < CACHE_SECONDS:
             return _cached
         with ThreadPoolExecutor(max_workers=6) as pool:
-            quotes = list(pool.map(get_quote, INSTRUMENTS))
+            quotes = list(pool.map(get_quote, [available[s] for s in selected]))
         quotes = [dict(q, commentary=explain_quote(q)) for q in quotes]
         if _news is None or now - _news_at >= NEWS_SECONDS:
             _news = get_news()
             _news_at = time.monotonic()
         _cached = {"fetched_at": iso(), "quotes": quotes, "news": _news,
+                   "catalog": [{"symbol":s,"name":n,"kind":k} for s,n,k in INSTRUMENTS],
                    "refresh_seconds": CACHE_SECONDS, "streaming": False,
                    "notice": "רענון כל דקה בזמן שהמסך פתוח. נתוני ייחוס בלבד, לא שערי Plus500. אין חיבור לחשבון או ביצוע עסקאות."}
         _cached_at = time.monotonic()
+        _cached_key = selected
         return _cached
 
 
@@ -309,7 +350,9 @@ def register_market(app, require_login, require_csrf=None, csrf_token=None, get_
     @bp.get("/api/market")
     @require_login
     def data():
-        result = dict(snapshot())
+        raw_symbols = request.args.getlist('symbol')
+        symbols = raw_symbols[:6] if raw_symbols else None
+        result = dict(snapshot(symbols))
         monitor_id = request.args.get('monitor_id', '')
         result['sharing_available'] = shared is not None
         if shared and valid_monitor_id(monitor_id):
