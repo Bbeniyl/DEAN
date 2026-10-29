@@ -26,6 +26,8 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
 DEAN_PASSWORD = os.getenv("DEAN_PASSWORD", "").strip()
 SECRET_KEY = os.getenv("SECRET_KEY", "").strip()
 MODEL = os.getenv("OPENAI_MODEL", "gpt-5.6-sol").strip()
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
+CHAT_PROVIDER = os.getenv("CHAT_PROVIDER", "openai").strip().lower()
 DB_PATH = os.getenv("DB_PATH", "/tmp/dean.sqlite3").strip()
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 _tinyfish_raw = os.getenv("TINYFISH_API_KEY", "")
@@ -1112,6 +1114,36 @@ def needs_browser(message):
     return any(x in text for x in action_words)
 
 def ask_dean(message):
+    # Gemini can handle normal chat; OpenAI remains available for browser-tool workflows
+    # and for existing speech/memory features.
+    if CHAT_PROVIDER == "gemini":
+        if not GEMINI_API_KEY:
+            raise RuntimeError("CHAT_PROVIDER is gemini but GEMINI_API_KEY is missing")
+        history = load_relevant_history(message, recent_limit=20, scan_limit=700, max_extra=20)
+        system_text = dean_instructions(message)
+        contents = []
+        for item in history + [{"role": "user", "content": message}]:
+            role = "user" if item.get("role") == "user" else "model"
+            content = str(item.get("content", "")).strip()
+            if content:
+                contents.append({"role": role, "parts": [{"text": content}]})
+        payload = {
+            "system_instruction": {"parts": [{"text": system_text}]},
+            "contents": contents,
+            "generationConfig": {"temperature": 0.7, "maxOutputTokens": 1200}
+        }
+        response = requests.post(
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+            headers={"x-goog-api-key": GEMINI_API_KEY, "Content-Type": "application/json"},
+            json=payload,
+            timeout=60,
+        )
+        if not response.ok:
+            raise RuntimeError("Gemini API returned HTTP " + str(response.status_code) + ": " + response.text[:300])
+        data = response.json()
+        parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+        answer = "\\n".join(p.get("text", "") for p in parts if p.get("text")).strip()
+        return answer or "לא התקבלה תשובה מ-Gemini."
     history = load_relevant_history(message, recent_limit=20, scan_limit=700, max_extra=20)
     tools = [{
         "type": "function",
