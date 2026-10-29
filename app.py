@@ -2582,3 +2582,50 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=int(os.getenv("PORT", "10000"))
     )
+
+
+@app.post("/api/external/chat")
+def api_external_chat():
+    """Authenticated machine-to-machine entry point for approved external clients."""
+    expected = os.getenv("DEAN_SECRET_KEY", "").strip()
+    if not expected:
+        return jsonify(error="external_api_not_configured"), 503
+
+    supplied = request.headers.get("Authorization", "")
+    prefix = "Bearer "
+    if not supplied.startswith(prefix) or not secrets.compare_digest(supplied[len(prefix):].strip(), expected):
+        return jsonify(error="unauthorized"), 401, {"WWW-Authenticate": "Bearer"}
+
+    data = request.get_json(silent=True) or {}
+    message = str(data.get("message", "")).strip()
+    if not message:
+        return jsonify(error="הודעה ריקה"), 400
+    if len(message) > 6000:
+        return jsonify(error="ההודעה ארוכה מדי"), 400
+
+    local_answer = maybe_handle_local_command(message)
+    if local_answer is not None:
+        answer = local_answer
+    else:
+        try:
+            answer = ask_dean(message)
+        except Exception:
+            app.logger.exception("DEAN external API request failed")
+            return jsonify(error="DEAN לא הצליח להשלים את הבקשה כרגע."), 502
+
+    due_now = due_reminders(10)
+    if due_now:
+        answer = (answer.rstrip() + "\\n\\n" + "\\n".join(
+            f"תזכורת: {r['content']}" for r in due_now
+        )).strip()
+        mark_reminders_notified([r["id"] for r in due_now])
+
+    save_message("user", message)
+    save_message("assistant", answer)
+    threading.Thread(
+        target=auto_learn_from_turn,
+        args=(message, answer),
+        daemon=True,
+        name="dean-external-memory-learner",
+    ).start()
+    return jsonify(status="success", response=answer)
