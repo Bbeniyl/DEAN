@@ -38,6 +38,8 @@ TIKTOK_CLIENT_SECRET = os.getenv("TIKTOK_CLIENT_SECRET", "").strip()
 TIKTOK_REDIRECT_URI = os.getenv("TIKTOK_REDIRECT_URI", "https://dean-agent-5y18.onrender.com/tiktok/callback").strip()
 TIKTOK_SCOPES = os.getenv("TIKTOK_SCOPES", "user.info.basic").strip()
 DEAN_VERSION = os.getenv("RENDER_GIT_COMMIT", "dev").strip()[:12]
+REALTIME_MODEL = os.getenv("REALTIME_MODEL", "gpt-realtime-2.1").strip()
+REALTIME_VOICE = os.getenv("REALTIME_VOICE", "cedar").strip()
 
 if not OPENAI_API_KEY:
     raise RuntimeError("OPENAI_API_KEY is missing")
@@ -1311,6 +1313,15 @@ body::before{content:"";position:fixed;inset:-20% -10% auto auto;width:60vw;heig
 .bubble{padding:13px 16px;border-radius:18px;max-width:min(720px,82vw);white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6;font-size:15.5px}
 .user .bubble{background:var(--gold);color:#17130A;border-top-left-radius:6px}
 .assistant .bubble{background:var(--panel);border:1px solid var(--line);border-top-right-radius:6px}
+.play{flex:none;align-self:flex-end;width:32px;height:32px;border-radius:50%;border:1px solid var(--line2);background:transparent;color:var(--gold);font-size:12px;cursor:pointer;display:grid;place-items:center;padding:0}
+.play.on{background:var(--gold);color:#17130A;border-color:var(--gold)}
+.tool.live{border-color:rgba(245,185,66,.5);color:var(--gold);font-weight:600}
+.tool.live.on{background:var(--gold);color:#17130A}
+.liveBar{display:none;max-width:820px;margin:0 auto 10px;align-items:center;gap:12px;padding:12px 14px;border-radius:16px;background:var(--goldDim);border:1px solid rgba(245,185,66,.35);color:var(--gold2);font-size:14px}
+.liveBar.on{display:flex}
+.pulse{width:12px;height:12px;border-radius:50%;background:var(--gold);animation:pulse 1.4s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(245,185,66,.6)}70%{box-shadow:0 0 0 12px rgba(245,185,66,0)}100%{box-shadow:0 0 0 0 rgba(245,185,66,0)}}
+.liveBar button{margin-right:auto;border:0;border-radius:10px;background:var(--gold);color:#17130A;font:inherit;font-weight:700;padding:7px 12px;cursor:pointer}
 /* composer */
 .bottom{padding:10px clamp(10px,5vw,72px) 18px;background:linear-gradient(transparent,var(--bg) 35%)}
 .thinking{max-width:820px;margin:0 auto 8px;color:var(--muted);font-size:12px;min-height:16px}
@@ -1377,11 +1388,12 @@ textarea:focus{border-color:rgba(245,185,66,.55);box-shadow:0 0 0 4px rgba(245,1
 </div>
 {% endif %}
 {% for m in messages %}
-<div class="msg {{ m['role'] }}"><div class="mini">{% if m["role"]=="user" %}אתה{% else %}{{ logo_mini|safe }}{% endif %}</div><div class="bubble">{{ m["content"] }}</div></div>
+<div class="msg {{ m['role'] }}"><div class="mini">{% if m["role"]=="user" %}אתה{% else %}{{ logo_mini|safe }}{% endif %}</div><div class="bubble">{{ m["content"] }}</div>{% if m["role"]!="user" %}<button class="play" type="button" aria-label="הקרא">▶</button>{% endif %}</div>
 {% endfor %}
 </section>
 
 <section class="bottom">
+<div class="liveBar" id="liveBar"><span class="pulse"></span><span id="liveText">שיחה חיה עם DEAN — פשוט דבר</span><button type="button" id="liveEnd">סיים</button></div>
 <div class="thinking" id="status"></div>
 <div class="compose">
 <form id="chatForm">
@@ -1392,7 +1404,7 @@ textarea:focus{border-color:rgba(245,185,66,.55);box-shadow:0 0 0 4px rgba(245,1
 </form>
 </div>
 <div class="tools">
-<button class="tool" type="button" id="liveVoice">🗣️ שיחה חיה</button>
+<button class="tool live" type="button" id="liveVoice">📞 שיחה חיה</button>
 <button class="tool" type="button" id="read">🔊 הקרא</button>
 <button class="tool" type="button" id="stopSpeech">⏹ עצור</button>
 <button class="tool" type="button" id="copy">⧉ העתק</button>
@@ -1444,7 +1456,7 @@ function stopLiveConversation(){
   voiceMode=false;
   stopDeanSpeaking();
   if(voiceRecognition){try{voiceRecognition.abort();}catch(e){} voiceRecognition=null;}
-  liveVoiceBtn.textContent="🗣️ שיחה חיה";
+  liveVoiceBtn.textContent="📞 שיחה חיה";
   statusEl.textContent="✅ שיחה חיה נעצרה";
 }
 function setStage(stage,state="work"){const icon=state==="wait"?"🟡":state==="need"?"🔴":"🟢";statusEl.dataset.stage=stage;statusEl.dataset.state=state;statusEl.textContent=icon+" "+stage;}
@@ -1500,6 +1512,7 @@ function addMessage(role,text){
   bubble.textContent=text;
 
   wrap.append(mini,bubble);
+  if(role!=="user"){const pb=document.createElement("button");pb.className="play";pb.type="button";pb.setAttribute("aria-label","הקרא");pb.textContent="▶";wrap.appendChild(pb);}
   box.appendChild(wrap);
   box.scrollTop=box.scrollHeight;
 }
@@ -1665,7 +1678,7 @@ function startVoiceListening(){
   const R=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!R){
     voiceMode=false;
-    liveVoiceBtn.textContent="🗣️ שיחה חיה";
+    liveVoiceBtn.textContent="📞 שיחה חיה";
     statusEl.textContent="🔴 שיחה חיה לא נתמכת בדפדפן הזה";
     return;
   }
@@ -1686,7 +1699,7 @@ function startVoiceListening(){
     if(!voiceMode)return;
     if(e.error==="not-allowed" || e.error==="service-not-allowed"){
       voiceMode=false;
-      liveVoiceBtn.textContent="🗣️ שיחה חיה";
+      liveVoiceBtn.textContent="📞 שיחה חיה";
       statusEl.textContent="🔴 צריך לאשר גישה למיקרופון";
     }else{
       statusEl.textContent="🟡 לא שמעתי, מנסה שוב...";
@@ -1701,7 +1714,76 @@ function startVoiceListening(){
   r.start();
 }
 
-liveVoiceBtn.onclick=()=>{
+/* ---------- ▶ read a single message ---------- */
+let playingBtn=null;
+box.addEventListener("click",(e)=>{
+  const b=e.target.closest(".play"); if(!b)return;
+  if(playingBtn===b){stopDeanSpeaking(); b.classList.remove("on"); b.textContent="▶"; playingBtn=null; return;}
+  if(playingBtn){playingBtn.classList.remove("on"); playingBtn.textContent="▶";}
+  const text=(b.parentElement.querySelector(".bubble")||{}).textContent||"";
+  if(!text)return;
+  playingBtn=b; b.classList.add("on"); b.textContent="■";
+  speakForConversation(text,()=>{ if(playingBtn===b){b.classList.remove("on"); b.textContent="▶"; playingBtn=null;} });
+});
+
+/* ---------- 📞 real live conversation (OpenAI Realtime over WebRTC) ---------- */
+const liveBar=document.getElementById("liveBar"), liveText=document.getElementById("liveText");
+let rtc=null, rtcMic=null, rtcAudio=null, rtcDc=null, liveOn=false;
+function logLive(role,text){fetch("/api/live/log",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json","X-CSRF-Token":csrf},body:JSON.stringify({role,text})}).catch(()=>{});}
+function stopRealtime(){
+  liveOn=false;
+  try{rtcDc&&rtcDc.close();}catch(e){} try{rtc&&rtc.close();}catch(e){}
+  if(rtcMic){rtcMic.getTracks().forEach(t=>t.stop());}
+  if(rtcAudio){try{rtcAudio.srcObject=null; rtcAudio.remove();}catch(e){}}
+  rtc=rtcMic=rtcAudio=rtcDc=null;
+  liveBar.classList.remove("on"); liveVoiceBtn.classList.remove("on"); liveVoiceBtn.textContent="📞 שיחה חיה";
+  statusEl.textContent="✅ השיחה החיה הסתיימה";
+}
+async function startRealtime(){
+  stopDeanSpeaking();
+  liveVoiceBtn.textContent="⏳ מתחבר..."; statusEl.textContent="🟡 מתחבר לשיחה חיה...";
+  const t=await fetch("/api/live/token",{method:"POST",credentials:"same-origin",headers:{"X-CSRF-Token":csrf}});
+  const tk=await t.json().catch(()=>({}));
+  if(!t.ok||!tk.value) throw new Error(tk.error||"token");
+  rtc=new RTCPeerConnection();
+  rtcAudio=document.createElement("audio"); rtcAudio.autoplay=true; rtcAudio.setAttribute("playsinline",""); rtcAudio.style.display="none"; document.body.appendChild(rtcAudio);
+  rtc.ontrack=(e)=>{rtcAudio.srcObject=e.streams[0]; rtcAudio.play().catch(()=>{});};
+  rtcMic=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
+  rtc.addTrack(rtcMic.getTracks()[0],rtcMic);
+  rtcDc=rtc.createDataChannel("oai-events");
+  rtcDc.onopen=()=>{
+    try{rtcDc.send(JSON.stringify({type:"session.update",session:{type:"realtime",audio:{input:{transcription:{model:"gpt-4o-mini-transcribe",language:"he"}}}}}));}catch(e){}
+  };
+  rtcDc.onmessage=(e)=>{
+    let ev; try{ev=JSON.parse(e.data);}catch(_){return;}
+    if(ev.type==="input_audio_buffer.speech_started"){liveText.textContent="🎙️ מקשיב לך...";}
+    if(ev.type==="response.created"){liveText.textContent="💭 DEAN עונה...";}
+    if(ev.type==="response.done"){liveText.textContent="שיחה חיה עם DEAN — פשוט דבר";}
+    if(ev.type==="conversation.item.input_audio_transcription.completed" && ev.transcript){const x=ev.transcript.trim(); if(x){addMessage("user",x); logLive("user",x);}}
+    if((ev.type==="response.output_audio_transcript.done"||ev.type==="response.audio_transcript.done") && ev.transcript){const x=ev.transcript.trim(); if(x){last=x; addMessage("assistant",x); logLive("assistant",x);}}
+    if(ev.type==="error"){console.warn("realtime error",ev);}
+  };
+  rtc.onconnectionstatechange=()=>{ if(["failed","closed","disconnected"].includes(rtc&&rtc.connectionState) && liveOn){stopRealtime(); statusEl.textContent="🔴 השיחה החיה התנתקה";} };
+  const offer=await rtc.createOffer(); await rtc.setLocalDescription(offer);
+  const sdp=await fetch("https://api.openai.com/v1/realtime/calls",{method:"POST",body:offer.sdp,headers:{Authorization:"Bearer "+tk.value,"Content-Type":"application/sdp"}});
+  if(!sdp.ok) throw new Error("sdp "+sdp.status);
+  await rtc.setRemoteDescription({type:"answer",sdp:await sdp.text()});
+  liveOn=true;
+  liveBar.classList.add("on"); liveVoiceBtn.classList.add("on"); liveVoiceBtn.textContent="⏹ סיים שיחה";
+  statusEl.textContent="🟢 שיחה חיה פעילה";
+}
+document.getElementById("liveEnd").onclick=()=>stopRealtime();
+
+liveVoiceBtn.onclick=async()=>{
+  if(liveOn){stopRealtime(); return;}
+  if(!voiceMode){
+    try{ await startRealtime(); return; }
+    catch(err){
+      console.warn("realtime failed, falling back",err);
+      if(rtc||rtcMic){stopRealtime();}
+      statusEl.textContent="🟡 השיחה החיה המתקדמת לא זמינה, עובר למצב קולי רגיל";
+    }
+  }
   if(voiceMode){
     stopLiveConversation();
     return;
@@ -2254,6 +2336,63 @@ def api_speech():
     except Exception:
         app.logger.exception("Speech generation failed")
         return jsonify(error="שגיאה ביצירת קול"), 500
+
+
+
+@app.post("/api/live/token")
+@require_csrf
+def api_live_token():
+    """Mint a short-lived key so the browser can talk to DEAN live (OpenAI Realtime over WebRTC)."""
+    try:
+        instructions = dean_instructions("") + """
+
+מצב שיחה קולית חיה:
+- אתה מדבר עכשיו בקול עם בניאל, בזמן אמת, כמו בשיחת טלפון.
+- דבר בעברית ישראלית טבעית, משפטים קצרים, בלי רשימות ובלי סימנים.
+- אם הוא קוטע אותך, תפסיק ותקשיב.
+- בשיחה הקולית אין לך גישה לדפדפן ולכלים. אם הוא מבקש פעולה כזו, תגיד לו לכתוב לך אותה בצ'אט."""
+        session_cfg = {
+            "session": {
+                "type": "realtime",
+                "model": REALTIME_MODEL,
+                "instructions": instructions[:16000],
+                "audio": {"output": {"voice": REALTIME_VOICE}},
+            }
+        }
+        r = requests.post(
+            "https://api.openai.com/v1/realtime/client_secrets",
+            headers={
+                "Authorization": "Bearer " + OPENAI_API_KEY,
+                "Content-Type": "application/json",
+                "OpenAI-Safety-Identifier": "dean-owner",
+            },
+            json=session_cfg,
+            timeout=20,
+        )
+        if not r.ok:
+            app.logger.error("Realtime token failed %s: %s", r.status_code, r.text[:300])
+            return jsonify(error="לא הצלחתי לפתוח שיחה חיה (" + str(r.status_code) + ")"), 502
+        data = r.json()
+        value = data.get("value") or (data.get("client_secret") or {}).get("value")
+        if not value:
+            return jsonify(error="לא התקבל מפתח לשיחה חיה"), 502
+        return jsonify(value=value, model=REALTIME_MODEL)
+    except Exception:
+        app.logger.exception("Realtime token error")
+        return jsonify(error="שגיאה בפתיחת שיחה חיה"), 500
+
+
+@app.post("/api/live/log")
+@require_csrf
+def api_live_log():
+    """Save what was said in a live voice call into DEAN's normal chat history."""
+    data = request.get_json(silent=True) or {}
+    role = data.get("role")
+    text = (data.get("text") or "").strip()
+    if role not in ("user", "assistant") or not text:
+        return jsonify(ok=False), 400
+    save_message(role, text[:6000])
+    return jsonify(ok=True)
 
 
 def save_oauth_token(provider, access_token, refresh_token="", open_id="", scope="", expires_at=0):
