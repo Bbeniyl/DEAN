@@ -1198,40 +1198,51 @@ def ask_dean(message):
     text=re.sub(r"^\s*[-•]\s+","",text,flags=re.MULTILINE)
     return text or "לא התקבלה תשובה."
 
+
+def dean_logo(size=40):
+    """DEAN brand mark: amber tile with a 'D' whose center is an eye/dot."""
+    return (
+        f'<svg class="logo" width="{size}" height="{size}" viewBox="0 0 64 64" aria-label="DEAN" role="img" xmlns="http://www.w3.org/2000/svg">'
+        '<rect width="64" height="64" rx="16" fill="#F5B942"/>'
+        '<path d="M21 17h10c10 0 17 6.5 17 15s-7 15-17 15H21z" fill="none" stroke="#0B0B0D" stroke-width="6" stroke-linejoin="round"/>'
+        '<circle cx="31" cy="32" r="4" fill="#0B0B0D"/></svg>'
+    )
+
 LOGIN_HTML = r"""
 <!doctype html>
 <html lang="he" dir="rtl">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0B0B0D">
 <title>DEAN</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
 :root{color-scheme:dark}
 *{box-sizing:border-box}
-body{margin:0;min-height:100vh;display:grid;place-items:center;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display",system-ui,sans-serif;background:
-radial-gradient(circle at 20% 15%,rgba(90,160,255,.24),transparent 34%),
-radial-gradient(circle at 80% 85%,rgba(74,236,185,.15),transparent 34%),
-linear-gradient(145deg,#070b13,#0c1322 55%,#070b13);color:#eef5ff;padding:24px}
-.card{width:min(430px,100%);padding:34px;border:1px solid rgba(255,255,255,.10);border-radius:30px;background:rgba(15,23,40,.76);backdrop-filter:blur(24px);box-shadow:0 35px 100px rgba(0,0,0,.48)}
-.logo{width:72px;height:72px;border-radius:24px;display:grid;place-items:center;font-size:31px;font-weight:900;color:#041018;background:linear-gradient(135deg,#69ecc0,#58a9ff);box-shadow:0 14px 40px rgba(77,171,255,.28)}
-h1{font-size:38px;margin:20px 0 6px}.sub{color:#9aa9c1;margin-bottom:26px}
-input{width:100%;padding:16px 17px;border-radius:16px;border:1px solid rgba(255,255,255,.12);background:#0a101c;color:#fff;font-size:17px;outline:none}
-input:focus{border-color:rgba(105,236,192,.6);box-shadow:0 0 0 4px rgba(105,236,192,.08)}
-button{width:100%;margin-top:12px;padding:16px;border:0;border-radius:16px;background:linear-gradient(135deg,#69ecc0,#58a9ff);color:#031117;font-weight:800;font-size:16px}
-.error{color:#ff97a5}
+body{margin:0;min-height:100vh;display:grid;place-items:center;font-family:"Heebo",-apple-system,system-ui,sans-serif;background:#0B0B0D;color:#F4F1EA;padding:24px}
+body::before{content:"";position:fixed;top:-20vh;left:50%;transform:translateX(-50%);width:90vw;height:70vh;background:radial-gradient(closest-side,rgba(245,185,66,.13),transparent);pointer-events:none}
+.card{position:relative;width:min(420px,100%);padding:36px 30px;border:1px solid rgba(255,255,255,.08);border-radius:26px;background:#16161A;box-shadow:0 40px 100px rgba(0,0,0,.5);text-align:center}
+.logo{filter:drop-shadow(0 16px 36px rgba(245,185,66,.3))}
+h1{font-size:34px;letter-spacing:.2em;margin:20px 0 4px;font-weight:800}
+.sub{color:#8E8A82;margin-bottom:26px}
+input{width:100%;padding:16px;border-radius:14px;border:1px solid rgba(255,255,255,.12);background:#0B0B0D;color:#fff;font:inherit;font-size:17px;outline:none;text-align:center}
+input:focus{border-color:rgba(245,185,66,.6);box-shadow:0 0 0 4px rgba(245,185,66,.1)}
+button{width:100%;margin-top:12px;padding:16px;border:0;border-radius:14px;background:#F5B942;color:#17130A;font:inherit;font-weight:800;font-size:16px;cursor:pointer}
+.error{color:#FF8A80}
 </style>
 </head>
 <body>
 <div class="card">
-<div class="logo">D</div>
+<svg class="logo" width="76" height="76" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><rect width="64" height="64" rx="16" fill="#F5B942"/><path d="M21 17h10c10 0 17 6.5 17 15s-7 15-17 15H21z" fill="none" stroke="#0B0B0D" stroke-width="6" stroke-linejoin="round"/><circle cx="31" cy="32" r="4" fill="#0B0B0D"/></svg>
 <h1>DEAN</h1>
 <div class="sub">העוזר האישי הפרטי של בניאל</div>
 {% if error %}<p class="error">{{ error }}</p>{% endif %}
 <form method="post">
 <input type="hidden" name="csrf" value="{{ csrf }}">
 <input type="hidden" name="next" value="{{ next_path }}">
-<input type="password" name="password" placeholder="סיסמת DEAN" autocomplete="current-password" required>
-<button>כניסה מאובטחת</button>
+<input type="password" name="password" placeholder="סיסמה" autocomplete="current-password" required>
+<button>כניסה</button>
 </form>
 </div>
 </body>
@@ -1244,58 +1255,129 @@ APP_HTML = r"""
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#070b13">
+<meta name="theme-color" content="#0B0B0D">
 <title>DEAN</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23F5B942'/%3E%3Cpath d='M21 17h10c10 0 17 6.5 17 15s-7 15-17 15H21z' fill='none' stroke='%230B0B0D' stroke-width='6' stroke-linejoin='round'/%3E%3Ccircle cx='31' cy='32' r='4' fill='%230B0B0D'/%3E%3C/svg%3E">
 <style>
-:root{--bg:#070b13;--panel:rgba(16,24,41,.78);--line:rgba(255,255,255,.085);--text:#eef5ff;--muted:#94a4bd;--a:#69ecc0;--b:#58a9ff;color-scheme:dark}
-*{box-sizing:border-box}html,body{height:100%}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display",system-ui,sans-serif;background:
-radial-gradient(circle at 85% 0%,rgba(88,169,255,.14),transparent 28%),
-radial-gradient(circle at 10% 100%,rgba(105,236,192,.10),transparent 30%),var(--bg);color:var(--text);overflow:hidden}
-.app{height:100%;display:grid;grid-template-columns:290px 1fr}.side{border-left:1px solid var(--line);background:rgba(7,11,19,.74);backdrop-filter:blur(22px);padding:20px;display:flex;flex-direction:column;gap:14px;overflow:auto}
-.brand{display:flex;align-items:center;gap:12px;padding:3px 0 10px}.avatar{width:50px;height:50px;border-radius:17px;display:grid;place-items:center;background:linear-gradient(135deg,var(--a),var(--b));color:#041018;font-weight:900;font-size:21px;box-shadow:0 10px 35px rgba(88,169,255,.22)}
-.brand strong{font-size:21px}.brand span{display:block;font-size:12px;color:var(--muted);margin-top:2px}.card{border:1px solid var(--line);background:var(--panel);border-radius:19px;padding:15px}.card h3{font-size:13px;margin:0 0 10px;color:#bac7da}.rowitem{padding:8px 0;border-top:1px solid var(--line);font-size:13px;color:#cbd6e7}.status{display:flex;align-items:center;gap:8px;font-size:12px;color:#b6c2d4}.dot{width:8px;height:8px;border-radius:50%;background:var(--a);box-shadow:0 0 15px var(--a)}
-.main{min-width:0;min-height:0;display:grid;grid-template-rows:72px minmax(0,1fr) auto}.top{border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:rgba(7,11,19,.48);backdrop-filter:blur(18px)}
-.title{display:flex;align-items:center;gap:11px}.title .avatar{width:39px;height:39px;border-radius:13px;font-size:15px}.title small{color:var(--muted)}
-.chat{min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;padding:26px clamp(12px,5vw,70px);scroll-behavior:smooth}.welcome{max-width:760px;margin:10vh auto 44px;text-align:center}.big{width:82px;height:82px;border-radius:27px;margin:auto;display:grid;place-items:center;background:linear-gradient(135deg,var(--a),var(--b));color:#041018;font-size:34px;font-weight:900;box-shadow:0 18px 55px rgba(88,169,255,.22)}
-.welcome h2{font-size:36px;margin:22px 0 8px}.welcome p{color:var(--muted);font-size:16px}
-.msg{max-width:840px;margin:0 auto 17px;display:flex;gap:11px;align-items:flex-start}.mini{width:33px;height:33px;border-radius:11px;display:grid;place-items:center;flex:none;font-size:11px;font-weight:800}.user .mini{background:#26344c}.assistant .mini{background:linear-gradient(135deg,var(--a),var(--b));color:#041018}
-.bubble{padding:14px 16px;border-radius:20px;max-width:min(760px,84vw);white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.55;border:1px solid var(--line)}.user .bubble{background:#1a2941}.assistant .bubble{background:rgba(16,24,41,.82)}
-.bottom{padding:12px clamp(10px,5vw,70px) 20px;background:linear-gradient(transparent,var(--bg) 30%)}.compose{max-width:840px;margin:auto;position:relative}textarea{width:100%;resize:none;min-height:60px;max-height:180px;padding:17px 62px 17px 16px;border:1px solid rgba(255,255,255,.12);border-radius:21px;background:rgba(14,21,36,.94);color:#fff;font:inherit;outline:none;box-shadow:0 18px 50px rgba(0,0,0,.24)}
-textarea:focus{border-color:rgba(105,236,192,.52);box-shadow:0 0 0 4px rgba(105,236,192,.07),0 18px 50px rgba(0,0,0,.24)}.send{position:absolute;left:9px;bottom:9px;width:43px;height:43px;border:0;border-radius:14px;background:linear-gradient(135deg,var(--a),var(--b));color:#041018;font-size:18px;font-weight:900}.tools{max-width:840px;margin:8px auto 0;display:flex;gap:8px;flex-wrap:wrap}.tool{border:1px solid var(--line);background:rgba(16,24,41,.65);color:#c2cede;border-radius:12px;padding:8px 11px}.thinking{max-width:840px;margin:0 auto 8px;color:var(--muted);font-size:12px}
+:root{
+  --bg:#0B0B0D;--bg2:#111114;--panel:#16161A;--panel2:#1C1C21;--line:rgba(255,255,255,.07);--line2:rgba(255,255,255,.12);
+  --text:#F4F1EA;--muted:#8E8A82;--soft:#BDB7AC;--gold:#F5B942;--gold2:#FFD27A;--goldDim:rgba(245,185,66,.14);--ok:#5BD69B;
+  color-scheme:dark
+}
+*{box-sizing:border-box}html,body{height:100%}
+body{margin:0;font-family:"Heebo",-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;background:var(--bg);color:var(--text);overflow:hidden;-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:-20% -10% auto auto;width:60vw;height:60vw;background:radial-gradient(closest-side,rgba(245,185,66,.09),transparent);pointer-events:none}
+.logo{display:block;flex:none}
+.app{height:100%;display:grid;grid-template-columns:300px 1fr;position:relative}
+/* sidebar */
+.side{border-left:1px solid var(--line);background:var(--bg2);padding:22px 18px;display:flex;flex-direction:column;gap:14px;overflow:auto}
+.brand{display:flex;align-items:center;gap:12px;padding:2px 4px 14px;border-bottom:1px solid var(--line)}
+.brand strong{font-size:22px;letter-spacing:.14em;font-weight:800}
+.brand span{display:block;font-size:12px;color:var(--muted);margin-top:3px;letter-spacing:0}
+.status{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--soft)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 4px rgba(91,214,155,.14)}
+.nav{display:flex;flex-direction:column;gap:4px}
+.nav a,.nav button{display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:12px;color:var(--soft);text-decoration:none;font:inherit;font-size:14px;background:none;border:0;text-align:right;cursor:pointer}
+.nav a:hover,.nav button:hover{background:var(--panel);color:var(--text)}
+.nav .ico{width:28px;height:28px;border-radius:9px;display:grid;place-items:center;background:var(--panel);font-size:14px}
+.card{border:1px solid var(--line);background:var(--panel);border-radius:16px;padding:14px}
+.card h3{font-size:11px;margin:0 0 8px;color:var(--muted);font-weight:600;letter-spacing:.12em;text-transform:uppercase}
+.rowitem{padding:8px 0;border-top:1px solid var(--line);font-size:13px;color:var(--soft);line-height:1.45}
+.card .rowitem:first-of-type{border-top:0}
 .logout{margin-top:auto}
-@media(max-width:800px){html,body{height:100%;height:100dvh}.app{height:100dvh;grid-template-columns:1fr}.side{display:none}.main{min-height:0}.top{padding:0 14px}.chat{min-height:0;padding:17px 10px}.bottom{padding:10px 10px 14px}.welcome{margin-top:8vh}.welcome h2{font-size:29px}}
+.ghost{width:100%;border:1px solid var(--line2);background:transparent;color:var(--muted);border-radius:12px;padding:10px;font:inherit;font-size:13px;cursor:pointer}
+/* main */
+.main{min-width:0;min-height:0;display:grid;grid-template-rows:64px minmax(0,1fr) auto;position:relative}
+.top{border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 22px;background:rgba(11,11,13,.8);backdrop-filter:blur(16px)}
+.title{display:flex;align-items:center;gap:11px}
+.title b{font-size:16px;letter-spacing:.14em}.title small{display:block;color:var(--muted);font-size:12px}
+.topLinks{display:flex;gap:6px}
+.topLinks a{color:var(--soft);text-decoration:none;font-size:13px;padding:8px 11px;border-radius:10px;border:1px solid var(--line)}
+.chat{min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;padding:28px clamp(12px,5vw,72px);scroll-behavior:smooth}
+.welcome{max-width:680px;margin:9vh auto 40px;text-align:center}
+.welcome .logo{margin:0 auto 22px;filter:drop-shadow(0 18px 40px rgba(245,185,66,.25))}
+.welcome h2{font-size:34px;margin:0 0 8px;font-weight:800}
+.welcome p{color:var(--muted);font-size:16px;margin:0 0 26px}
+.chips{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;text-align:right}
+.chip{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:16px;padding:14px 15px;font:inherit;font-size:14px;cursor:pointer;line-height:1.4}
+.chip span{display:block;color:var(--muted);font-size:12px;margin-top:3px}
+.chip:hover{border-color:rgba(245,185,66,.45)}
+.msg{max-width:820px;margin:0 auto 18px;display:flex;gap:11px;align-items:flex-start}
+.mini{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;flex:none;font-size:11px;font-weight:700}
+.user{flex-direction:row-reverse}
+.user .mini{background:var(--panel2);color:var(--soft)}
+.assistant .mini{background:transparent}
+.bubble{padding:13px 16px;border-radius:18px;max-width:min(720px,82vw);white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6;font-size:15.5px}
+.user .bubble{background:var(--gold);color:#17130A;border-top-left-radius:6px}
+.assistant .bubble{background:var(--panel);border:1px solid var(--line);border-top-right-radius:6px}
+/* composer */
+.bottom{padding:10px clamp(10px,5vw,72px) 18px;background:linear-gradient(transparent,var(--bg) 35%)}
+.thinking{max-width:820px;margin:0 auto 8px;color:var(--muted);font-size:12px;min-height:16px}
+.compose{max-width:820px;margin:auto;position:relative}
+textarea{width:100%;resize:none;min-height:58px;max-height:180px;padding:17px 112px 17px 16px;border:1px solid var(--line2);border-radius:20px;background:var(--panel);color:var(--text);font:inherit;font-size:16px;outline:none}
+textarea::placeholder{color:#6E6A63}
+textarea:focus{border-color:rgba(245,185,66,.55);box-shadow:0 0 0 4px rgba(245,185,66,.08)}
+.send,.micBtn{position:absolute;bottom:8px;width:42px;height:42px;border:0;border-radius:13px;font-size:17px;cursor:pointer;display:grid;place-items:center}
+.send{left:8px;background:var(--gold);color:#17130A;font-weight:900}
+.send:disabled{opacity:.5}
+.micBtn{left:56px;background:var(--panel2);color:var(--text);border:1px solid var(--line2)}
+.tools{max-width:820px;margin:9px auto 0;display:flex;gap:6px;flex-wrap:wrap}
+.tool{border:1px solid var(--line);background:transparent;color:var(--soft);border-radius:999px;padding:7px 12px;font:inherit;font-size:12.5px;cursor:pointer}
+.tool:hover{border-color:var(--line2);color:var(--text)}
+@media(max-width:800px){
+  html,body{height:100%;height:100dvh}
+  .app{height:100dvh;grid-template-columns:1fr}.side{display:none}
+  .top{padding:0 14px}.topLinks a.hideSm{display:none}
+  .chat{padding:16px 10px}.bottom{padding:8px 10px 12px}
+  .welcome{margin-top:5vh}.welcome h2{font-size:27px}
+  .chips{grid-template-columns:1fr 1fr;gap:8px}.chip{padding:12px;font-size:13px}
+  .bubble{font-size:15px}
+}
 </style>
 </head>
 <body>
 <div class="app">
 <aside class="side">
-<div class="brand"><div class="avatar">D</div><div><strong>DEAN</strong><span>העוזר האישי של בניאל</span></div></div>
-<div class="card"><div class="status"><span class="dot"></span>DEAN מחובר</div></div>
-<div class="card"><h3>🧠 זיכרון</h3>
+<div class="brand">{{ logo|safe }}<div><strong>DEAN</strong><span>העוזר האישי של בניאל</span></div></div>
+<div class="card"><div class="status"><span class="dot"></span>מחובר ומוכן</div></div>
+<nav class="nav">
+<a href="/"><span class="ico">💬</span>שיחה</a>
+<a href="/browser"><span class="ico">🌐</span>הדפדפן המשותף</a>
+<a href="/market"><span class="ico">📈</span>מעקב שוק</a>
+</nav>
+<div class="card"><h3>זיכרון</h3>
 {% if memories %}
-{% for m in memories[:12] %}<div class="rowitem">{{ m["content"] }}</div>{% endfor %}
-{% else %}<div class="rowitem">אין עדיין זיכרונות.</div>{% endif %}
+{% for m in memories[:10] %}<div class="rowitem">{{ m["content"] }}</div>{% endfor %}
+{% else %}<div class="rowitem">עדיין אין זיכרונות.</div>{% endif %}
 </div>
-<div class="card"><h3>☑ משימות</h3>
+<div class="card"><h3>משימות</h3>
 {% if tasks %}
-{% for t in tasks[:12] %}<div class="rowitem">{{ "✅" if t["done"] else "⬜" }} {{ t["content"] }}</div>{% endfor %}
+{% for t in tasks[:10] %}<div class="rowitem">{{ "✅" if t["done"] else "◻️" }} {{ t["content"] }}</div>{% endfor %}
 {% else %}<div class="rowitem">אין כרגע משימות.</div>{% endif %}
 </div>
-<div class="logout"><button class="tool" id="logout" style="width:100%">יציאה</button></div>
+<div class="logout"><button class="ghost" id="logout">יציאה</button></div>
 </aside>
 
 <main class="main">
 <header class="top">
-<div class="title"><div class="avatar">D</div><div><b>DEAN</b><br><small>עוזר אישי פרטי</small></div></div>
-<div class="status"><span class="dot"></span>מחובר</div>
+<div class="title">{{ logo_small|safe }}<div><b>DEAN</b><small><span class="dot" style="display:inline-block;margin-left:6px"></span>מחובר</small></div></div>
+<div class="topLinks"><a href="/browser">🌐 דפדפן</a><a class="hideSm" href="/market">📈 שוק</a></div>
 </header>
 
 <section class="chat" id="messages">
 {% if not messages %}
-<div class="welcome"><div class="big">D</div><h2>מה נעשה היום?</h2><p>דבר איתי טבעי. אני זוכר, בודק ומשתמש בכלים המחוברים אליי.</p></div>
+<div class="welcome">{{ logo_big|safe }}<h2>מה נעשה היום, בניאל?</h2><p>דבר איתי טבעי. אני זוכר, בודק ועושה בשבילך.</p>
+<div class="chips">
+<button class="chip" type="button" data-q="תזכיר לי מחר ב-7 בבוקר ">⏰ תזכורת<span>"תזכיר לי מחר ב-7…"</span></button>
+<button class="chip" type="button" data-q="תחפש לי באינטרנט ">🔎 חיפוש<span>"תחפש לי…"</span></button>
+<button class="chip" type="button" data-q="תוסיף משימה: ">✅ משימה<span>"תוסיף משימה…"</span></button>
+<button class="chip" type="button" data-q="מה יש לי היום?">📋 סיכום היום<span>"מה יש לי היום?"</span></button>
+</div>
+</div>
 {% endif %}
 {% for m in messages %}
-<div class="msg {{ m['role'] }}"><div class="mini">{{ "אתה" if m["role"]=="user" else "D" }}</div><div class="bubble">{{ m["content"] }}</div></div>
+<div class="msg {{ m['role'] }}"><div class="mini">{% if m["role"]=="user" %}אתה{% else %}{{ logo_mini|safe }}{% endif %}</div><div class="bubble">{{ m["content"] }}</div></div>
 {% endfor %}
 </section>
 
@@ -1305,12 +1387,11 @@ textarea:focus{border-color:rgba(105,236,192,.52);box-shadow:0 0 0 4px rgba(105,
 <form id="chatForm">
 <input type="hidden" id="csrf" value="{{ csrf }}">
 <textarea id="message" rows="1" maxlength="6000" placeholder="דבר עם DEAN..." required></textarea>
-<button class="send" id="send" aria-label="שלח">➤</button>
+<button class="micBtn" type="button" id="mic" aria-label="הכתבה">🎙️</button>
+<button class="send" id="send" aria-label="שלח">↑</button>
 </form>
 </div>
 <div class="tools">
-<a class="tool" href="/market">מעקב שוק</a>
-<button class="tool" type="button" id="mic">🎙️ דבר</button>
 <button class="tool" type="button" id="liveVoice">🗣️ שיחה חיה</button>
 <button class="tool" type="button" id="read">🔊 הקרא</button>
 <button class="tool" type="button" id="stopSpeech">⏹ עצור</button>
@@ -1320,8 +1401,15 @@ textarea:focus{border-color:rgba(105,236,192,.52);box-shadow:0 0 0 4px rgba(105,
 </main>
 </div>
 
+
 <script>
+const DEAN_LOGO_MINI={{ logo_mini|tojson }};
 const box=document.getElementById("messages");
+document.querySelectorAll(".chip").forEach(c=>c.addEventListener("click",()=>{
+  const m=document.getElementById("message");
+  m.value=c.dataset.q||""; m.focus();
+  if(c.dataset.q && c.dataset.q.trim().endsWith("?")){document.getElementById("chatForm").requestSubmit();}
+}));
 const form=document.getElementById("chatForm");
 const message=document.getElementById("message");
 const statusEl=document.getElementById("status");
@@ -1405,7 +1493,7 @@ function addMessage(role,text){
 
   const mini=document.createElement("div");
   mini.className="mini";
-  mini.textContent=role==="user"?"אתה":"D";
+  if(role==="user"){mini.textContent="אתה";}else{mini.innerHTML=DEAN_LOGO_MINI;}
 
   const bubble=document.createElement("div");
   bubble.className="bubble";
@@ -1693,8 +1781,8 @@ button{font-size:15px;padding:10px 14px;border:1px solid rgba(255,255,255,.10);b
 .chatForm{display:flex;gap:8px;padding:10px;border-top:1px solid #2a2d33;align-items:center}
 #chatInput{flex:1;min-width:0}
 #chatMic{width:42px;height:42px;padding:0;border-radius:50%;font-size:18px}
-#chatToggle{display:grid;place-items:center;position:fixed;right:22px;bottom:22px;z-index:9999;width:58px;height:58px;padding:0;border-radius:50%;font-size:0;background:linear-gradient(135deg,#5ce1ff,#7b61ff);box-shadow:0 12px 34px rgba(75,174,255,.42);border:1px solid rgba(255,255,255,.25)}
-#chatToggle::after{content:"D";font-size:21px;font-weight:900;color:#061019}
+#chatToggle{display:grid;place-items:center;position:fixed;right:22px;bottom:22px;z-index:9999;width:58px;height:58px;padding:0;border-radius:18px;font-size:0;background:#F5B942;box-shadow:0 12px 34px rgba(245,185,66,.35);border:0}
+#chatToggle::after{content:"D";font-size:22px;font-weight:900;color:#0B0B0D}
 @media(max-width:900px){
   .main{grid-template-columns:1fr}
 }
@@ -2501,7 +2589,11 @@ def home():
         memories=memories,
         tasks=tasks,
         csrf=csrf_token(),
-        last_answer=last_answer
+        last_answer=last_answer,
+        logo=dean_logo(44),
+        logo_small=dean_logo(36),
+        logo_big=dean_logo(84),
+        logo_mini=dean_logo(32),
     )
 
 @app.get("/api/reminders/due")
