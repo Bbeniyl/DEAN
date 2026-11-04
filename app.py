@@ -137,6 +137,8 @@ def init_db():
                 id BIGSERIAL PRIMARY KEY, action TEXT NOT NULL, details TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending', created TEXT NOT NULL)""")
             con.execute("""CREATE TABLE IF NOT EXISTS releases(
                 id BIGSERIAL PRIMARY KEY, version TEXT NOT NULL UNIQUE, notes TEXT NOT NULL, created TEXT NOT NULL)""")
+            con.execute("""CREATE TABLE IF NOT EXISTS feedback(
+                id BIGSERIAL PRIMARY KEY, vote TEXT NOT NULL, answer TEXT NOT NULL, created TEXT NOT NULL)""")
         else:
             con.executescript("""
             CREATE TABLE IF NOT EXISTS messages(
@@ -158,6 +160,8 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT, action TEXT NOT NULL, details TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending', created TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS releases(
                 id INTEGER PRIMARY KEY AUTOINCREMENT, version TEXT NOT NULL UNIQUE, notes TEXT NOT NULL, created TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS feedback(
+                id INTEGER PRIMARY KEY AUTOINCREMENT, vote TEXT NOT NULL, answer TEXT NOT NULL, created TEXT NOT NULL);
             """)
         con.commit()
 
@@ -952,7 +956,21 @@ def dean_instructions(current_message=""):
         for r in reminders
     ) or "- אין כרגע"
 
+    try:
+        with get_db() as con:
+            fb_rows = con.execute("SELECT vote, answer FROM feedback ORDER BY id DESC LIMIT 8").fetchall()
+        fb_rows = [dict(r) for r in fb_rows]
+    except Exception:
+        fb_rows = []
+    feedback_text = "\n".join(
+        ("- אהב: " if r["vote"] == "up" else "- לא אהב: ") + r["answer"][:160].replace("\n", " ")
+        for r in fb_rows
+    ) or "- אין עדיין"
+
     return f"""
+משוב אחרון של בניאל על תשובות שלך (למד מזה את הסגנון שהוא אוהב ומה לא לעשות):
+{feedback_text}
+
 אתה DEAN, העוזר האישי הביצועי והמדריך האישי של בניאל.
 
 זהות ותפקיד:
@@ -1313,8 +1331,13 @@ body::before{content:"";position:fixed;inset:-20% -10% auto auto;width:60vw;heig
 .bubble{padding:13px 16px;border-radius:18px;max-width:min(720px,82vw);white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6;font-size:15.5px}
 .user .bubble{background:var(--gold);color:#17130A;border-top-left-radius:6px}
 .assistant .bubble{background:var(--panel);border:1px solid var(--line);border-top-right-radius:6px}
-.play{flex:none;align-self:flex-end;width:32px;height:32px;border-radius:50%;border:1px solid var(--line2);background:transparent;color:var(--gold);font-size:12px;cursor:pointer;display:grid;place-items:center;padding:0}
-.play.on{background:var(--gold);color:#17130A;border-color:var(--gold)}
+.col{display:flex;flex-direction:column;gap:6px;min-width:0;align-items:flex-start}
+.user .col{align-items:flex-end}
+.acts{display:flex;gap:2px;padding:0 4px}
+.act{width:32px;height:30px;border:0;border-radius:9px;background:transparent;color:var(--muted);font-size:14px;cursor:pointer;display:grid;place-items:center;padding:0;filter:grayscale(1);opacity:.75}
+.act:hover{background:var(--panel);color:var(--text);opacity:1}
+.act.on{color:var(--gold);filter:none;opacity:1;background:var(--goldDim)}
+.play.on{background:var(--gold);color:#17130A}
 .tool.live{border-color:rgba(245,185,66,.5);color:var(--gold);font-weight:600}
 .tool.live.on{background:var(--gold);color:#17130A}
 .liveBar{display:none;max-width:820px;margin:0 auto 10px;align-items:center;gap:12px;padding:12px 14px;border-radius:16px;background:var(--goldDim);border:1px solid rgba(245,185,66,.35);color:var(--gold2);font-size:14px}
@@ -1388,7 +1411,7 @@ textarea:focus{border-color:rgba(245,185,66,.55);box-shadow:0 0 0 4px rgba(245,1
 </div>
 {% endif %}
 {% for m in messages %}
-<div class="msg {{ m['role'] }}"><div class="mini">{% if m["role"]=="user" %}אתה{% else %}{{ logo_mini|safe }}{% endif %}</div><div class="bubble">{{ m["content"] }}</div>{% if m["role"]!="user" %}<button class="play" type="button" aria-label="הקרא">▶</button>{% endif %}</div>
+<div class="msg {{ m['role'] }}"><div class="mini">{% if m["role"]=="user" %}אתה{% else %}{{ logo_mini|safe }}{% endif %}</div><div class="col"><div class="bubble">{{ m["content"] }}</div>{% if m["role"]!="user" %}<div class="acts"><button class="act a-copy" type="button" title="העתק">⧉</button><button class="act play" type="button" title="הקרא">▶</button><button class="act a-up" type="button" title="אהבתי">👍</button><button class="act a-down" type="button" title="לא אהבתי">👎</button><button class="act a-retry" type="button" title="נסה שוב">↻</button></div>{% endif %}</div></div>
 {% endfor %}
 </section>
 
@@ -1416,6 +1439,7 @@ textarea:focus{border-color:rgba(245,185,66,.55);box-shadow:0 0 0 4px rgba(245,1
 
 <script>
 const DEAN_LOGO_MINI={{ logo_mini|tojson }};
+const ACTS_HTML='<div class="acts"><button class="act a-copy" type="button" title="העתק">⧉</button><button class="act play" type="button" title="הקרא">▶</button><button class="act a-up" type="button" title="אהבתי">👍</button><button class="act a-down" type="button" title="לא אהבתי">👎</button><button class="act a-retry" type="button" title="נסה שוב">↻</button></div>';
 const box=document.getElementById("messages");
 document.querySelectorAll(".chip").forEach(c=>c.addEventListener("click",()=>{
   const m=document.getElementById("message");
@@ -1511,8 +1535,9 @@ function addMessage(role,text){
   bubble.className="bubble";
   bubble.textContent=text;
 
-  wrap.append(mini,bubble);
-  if(role!=="user"){const pb=document.createElement("button");pb.className="play";pb.type="button";pb.setAttribute("aria-label","הקרא");pb.textContent="▶";wrap.appendChild(pb);}
+  const col=document.createElement("div"); col.className="col"; col.appendChild(bubble);
+  if(role!=="user"){col.insertAdjacentHTML("beforeend",ACTS_HTML);}
+  wrap.append(mini,col);
   box.appendChild(wrap);
   box.scrollTop=box.scrollHeight;
 }
@@ -1714,13 +1739,42 @@ function startVoiceListening(){
   r.start();
 }
 
+/* ---------- actions under every DEAN answer ---------- */
+function msgText(btn){return (btn.closest(".msg").querySelector(".bubble")||{}).textContent||"";}
+box.addEventListener("click",async(e)=>{
+  const b=e.target.closest(".a-copy,.a-up,.a-down,.a-retry"); if(!b)return;
+  const text=msgText(b);
+  if(b.classList.contains("a-copy")){
+    try{await navigator.clipboard.writeText(text);}catch(_){const ta=document.createElement("textarea");ta.value=text;document.body.appendChild(ta);ta.select();try{document.execCommand("copy");}catch(__){}ta.remove();}
+    b.textContent="✓"; setTimeout(()=>b.textContent="⧉",1200); return;
+  }
+  if(b.classList.contains("a-up")||b.classList.contains("a-down")){
+    const up=b.classList.contains("a-up");
+    const other=b.parentElement.querySelector(up?".a-down":".a-up");
+    const turnOn=!b.classList.contains("on");
+    b.classList.toggle("on",turnOn); other.classList.remove("on");
+    if(turnOn){
+      fetch("/api/feedback",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json","X-CSRF-Token":csrf},body:JSON.stringify({vote:up?"up":"down",text})}).catch(()=>{});
+      statusEl.textContent=up?"👍 תודה, DEAN לומד ממה שאהבת":"👎 קיבלתי. DEAN ילמד מזה";
+    }
+    return;
+  }
+  if(b.classList.contains("a-retry")){
+    let prev=b.closest(".msg").previousElementSibling;
+    while(prev && !prev.classList.contains("user")) prev=prev.previousElementSibling;
+    const q=prev?(prev.querySelector(".bubble")||{}).textContent:"";
+    if(!q){statusEl.textContent="🟡 לא מצאתי שאלה לחזור עליה";return;}
+    message.value=q; form.requestSubmit();
+  }
+});
+
 /* ---------- ▶ read a single message ---------- */
 let playingBtn=null;
 box.addEventListener("click",(e)=>{
   const b=e.target.closest(".play"); if(!b)return;
   if(playingBtn===b){stopDeanSpeaking(); b.classList.remove("on"); b.textContent="▶"; playingBtn=null; return;}
   if(playingBtn){playingBtn.classList.remove("on"); playingBtn.textContent="▶";}
-  const text=(b.parentElement.querySelector(".bubble")||{}).textContent||"";
+  const text=(b.closest(".msg").querySelector(".bubble")||{}).textContent||"";
   if(!text)return;
   playingBtn=b; b.classList.add("on"); b.textContent="■";
   speakForConversation(text,()=>{ if(playingBtn===b){b.classList.remove("on"); b.textContent="▶"; playingBtn=null;} });
@@ -2394,6 +2448,22 @@ def api_live_log():
     save_message(role, text[:6000])
     return jsonify(ok=True)
 
+
+
+@app.post("/api/feedback")
+@require_csrf
+def api_feedback():
+    """👍/👎 on a DEAN answer. Stored so DEAN can learn what Beniel likes."""
+    data = request.get_json(silent=True) or {}
+    vote = data.get("vote")
+    text = (data.get("text") or "").strip()[:4000]
+    if vote not in ("up", "down") or not text:
+        return jsonify(ok=False), 400
+    with get_db() as con:
+        q = "INSERT INTO feedback(vote,answer,created) VALUES(%s,%s,%s)" if DATABASE_URL else "INSERT INTO feedback(vote,answer,created) VALUES(?,?,?)"
+        con.execute(q, (vote, text, utc_now()))
+        con.commit()
+    return jsonify(ok=True)
 
 def save_oauth_token(provider, access_token, refresh_token="", open_id="", scope="", expires_at=0):
     with get_db() as con:
