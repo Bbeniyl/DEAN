@@ -165,6 +165,19 @@ def init_db():
             """)
         con.commit()
 
+def _check_database():
+    """If the Postgres database is gone or suspended, don't crash: fall back to local SQLite."""
+    global DATABASE_URL
+    if not DATABASE_URL:
+        return
+    try:
+        import psycopg
+        psycopg.connect(DATABASE_URL, connect_timeout=8).close()
+    except Exception as exc:
+        print("DATABASE_FALLBACK", {"error": type(exc).__name__, "message": str(exc)[:160]}, flush=True)
+        DATABASE_URL = ""
+
+_check_database()
 init_db()
 
 CURRENT_RELEASE_NOTES = """בדיקת מערכת מלאה מקצה לקצה: מסד נתונים, מודל, קול, דפדפן, ניווט, DOM, לחיצה, הקלדה, Enter, גלילה, רענון ותמונה. בנוסף תוקן מצב שבו אתר תקוע סימן בטעות את הדפדפן עצמו כמנותק."""
