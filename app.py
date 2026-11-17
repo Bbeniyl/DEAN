@@ -2891,6 +2891,9 @@ def chat():
 from market import register_market
 register_market(app, require_login, require_csrf, csrf_token, get_db, bool(DATABASE_URL))
 
+from life import register_life
+register_life(app, require_login, require_csrf, csrf_token, get_db, bool(DATABASE_URL))
+
 if __name__ == "__main__":
     app.run(
         host="0.0.0.0",
