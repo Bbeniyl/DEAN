@@ -2,7 +2,7 @@
 from flask import jsonify, render_template_string, request
 
 DEFAULT_AREAS = [
- ("בריאות וכושר","💪"),("עבודה ופרנסה","🏗️"),("כסף ופנסיה","💰"),
+ ("בריאות וכושר","💪"),("ביטוחים וזכויות","🛡️"),("עבודה ופרנסה","🏗️"),("כסף ופנסיה","💰"),
  ("הילד והמשפחה","👨‍👦"),("זוגיות","❤️"),("אמונה ותורה","📖"),
  ("בית","🏠"),("חברים ופנאי","🤝"),("לימוד והתפתחות","🧠"),
  ("רכב ותחבורה","🚗"),("סידורים אישיים","📋")
@@ -52,8 +52,8 @@ def register_life(app, require_login, require_csrf, csrf_token, get_db, postgres
             con.execute("CREATE TABLE IF NOT EXISTS life_summaries(id BIGSERIAL PRIMARY KEY,summary TEXT NOT NULL,created TEXT NOT NULL)")
         else:
             con.executescript("CREATE TABLE IF NOT EXISTS life_areas(id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL UNIQUE,icon TEXT NOT NULL DEFAULT '⭐',created TEXT NOT NULL); CREATE TABLE IF NOT EXISTS life_goals(id INTEGER PRIMARY KEY AUTOINCREMENT,area_id INTEGER NOT NULL,name TEXT NOT NULL,measure TEXT NOT NULL DEFAULT '',target TEXT NOT NULL DEFAULT '',progress INTEGER NOT NULL DEFAULT 0,status TEXT NOT NULL DEFAULT 'active',created TEXT NOT NULL,updated TEXT NOT NULL); CREATE TABLE IF NOT EXISTS life_checkins(id INTEGER PRIMARY KEY AUTOINCREMENT,area_id INTEGER NOT NULL,value INTEGER NOT NULL,note TEXT NOT NULL DEFAULT '',blocker TEXT NOT NULL DEFAULT '',created TEXT NOT NULL); CREATE TABLE IF NOT EXISTS life_summaries(id INTEGER PRIMARY KEY AUTOINCREMENT,summary TEXT NOT NULL,created TEXT NOT NULL)")
-        if con.execute("SELECT COUNT(*) AS n FROM life_areas").fetchone()["n"]==0:
-            for name,icon in DEFAULT_AREAS: con.execute(q("INSERT INTO life_areas(name,icon,created) VALUES(?,?,?)"),(name,icon,now()))
+        for name,icon in DEFAULT_AREAS:
+            con.execute(q("INSERT INTO life_areas(name,icon,created) VALUES(?,?,?) ON CONFLICT(name) DO NOTHING"),(name,icon,now()))
 
     @app.get("/life")
     @require_login
@@ -70,6 +70,7 @@ def register_life(app, require_login, require_csrf, csrf_token, get_db, postgres
         return jsonify(areas=a,goals=g,checks=c,summaries=s)
 
     @app.post("/api/life/areas")
+    @require_login
     @require_csrf
     def life_add_area():
         d=request.get_json(silent=True) or {}; n=str(d.get("name","")).strip()[:80]; icon=str(d.get("icon","⭐"))[:8]
@@ -80,6 +81,7 @@ def register_life(app, require_login, require_csrf, csrf_token, get_db, postgres
         return jsonify(ok=True)
 
     @app.post("/api/life/goals")
+    @require_login
     @require_csrf
     def life_add_goal():
         d=request.get_json(silent=True) or {}; n=str(d.get("name","")).strip()[:180]; aid=int(d.get("area_id",0) or 0)
@@ -90,6 +92,7 @@ def register_life(app, require_login, require_csrf, csrf_token, get_db, postgres
         return jsonify(ok=True)
 
     @app.patch("/api/life/goals/<int:gid>")
+    @require_login
     @require_csrf
     def life_update_goal(gid):
         d=request.get_json(silent=True) or {}; changes={k:v for k,v in d.items() if k in ("name","measure","target","progress","status")}
@@ -102,12 +105,14 @@ def register_life(app, require_login, require_csrf, csrf_token, get_db, postgres
         return jsonify(ok=True)
 
     @app.delete("/api/life/goals/<int:gid>")
+    @require_login
     @require_csrf
     def life_delete_goal(gid):
         with get_db() as con:con.execute(q("DELETE FROM life_goals WHERE id=?"),(gid,))
         return jsonify(ok=True)
 
     @app.post("/api/life/checkins")
+    @require_login
     @require_csrf
     def life_add_checkin():
         d=request.get_json(silent=True) or {}; aid=int(d.get("area_id",0) or 0); v=max(0,min(100,int(d.get("value",0) or 0)))
@@ -117,6 +122,7 @@ def register_life(app, require_login, require_csrf, csrf_token, get_db, postgres
         return jsonify(ok=True)
 
     @app.post("/api/life/summary")
+    @require_login
     @require_csrf
     def life_add_summary():
         d=request.get_json(silent=True) or {}; s=str(d.get("summary","")).strip()[:4000]
