@@ -2894,6 +2894,9 @@ register_market(app, require_login, require_csrf, csrf_token, get_db, bool(DATAB
 from life import register_life
 register_life(app, require_login, require_csrf, csrf_token, get_db, bool(DATABASE_URL))
 
+from life_world import register_world_preview
+register_world_preview(app, require_login)
+
 if __name__ == "__main__":
     app.run(
         host="0.0.0.0",
