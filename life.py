@@ -752,3 +752,50 @@ def register_life(app, require_login, require_csrf, csrf_token, get_db, postgres
         if not s:return jsonify(error="סיכום ריק"),400
         with get_db() as con:con.execute(q("INSERT INTO life_summaries(summary,created) VALUES(?,?)"),(s,now()))
         return jsonify(ok=True)
+
+
+    # Short-lived, one-time, read-only access for an external visual review.
+    import hashlib, secrets, time
+    from flask import session, make_response
+
+    with get_db() as con:
+        con.execute("CREATE TABLE IF NOT EXISTS life_review_tokens(token_hash TEXT PRIMARY KEY, expires_at DOUBLE PRECISION NOT NULL, used INTEGER NOT NULL DEFAULT 0)")
+
+    @app.before_request
+    def life_review_read_only_guard():
+        if session.get("review_only") and request.method in ("POST", "PUT", "PATCH", "DELETE"):
+            return jsonify(error="This review session is read-only"), 403
+
+    @app.get("/share-review")
+    @require_login
+    def life_share_review_page():
+        page = """<!doctype html><html lang="he" dir="rtl"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>אישור צפייה זמני</title><body style="font-family:Arial;background:#172a30;color:white;padding:28px;max-width:620px;margin:auto"><h2>יצירת קישור צפייה זמני ל-DEAN</h2><p>הקישור יאפשר בדיקה של היומן בלבד, ללא אפשרות לשנות או למחוק מידע. הוא חד-פעמי ויפוג אחרי 10 דקות.</p><form method="post" action="/share-review"><input type="hidden" name="csrf" value="CSRF_PLACEHOLDER"><button style="padding:14px 22px;border:0;border-radius:12px;background:#e9cf9a;font-size:17px">צור קישור צפייה</button></form></body></html>"""
+        return page.replace("CSRF_PLACEHOLDER", html.escape(csrf_token()))
+
+    @app.post("/share-review")
+    @require_login
+    @require_csrf
+    def life_create_review_link():
+        token = secrets.token_urlsafe(32)
+        digest = hashlib.sha256(token.encode()).hexdigest()
+        expires = time.time() + 600
+        with get_db() as con:
+            con.execute(q("INSERT INTO life_review_tokens(token_hash,expires_at,used) VALUES(?,?,0)"), (digest, expires))
+        link = request.url_root.rstrip("/") + "/review-access/" + token
+        safe_link = html.escape(link, quote=True)
+        page = """<!doctype html><html lang="he" dir="rtl"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>קישור צפייה</title><body style="font-family:Arial;background:#172a30;color:white;padding:28px;max-width:620px;margin:auto"><h2>הקישור מוכן</h2><p>העתק את הקישור ושלח אותו כאן בצ'אט. הוא חד-פעמי ויפוג בעוד 10 דקות.</p><input id="link" readonly value="LINK_PLACEHOLDER" style="width:100%;padding:14px;box-sizing:border-box;direction:ltr"><button onclick="navigator.clipboard.writeText(document.getElementById('link').value)" style="margin-top:12px;padding:14px 22px;border:0;border-radius:12px;background:#e9cf9a;font-size:17px">העתק קישור</button></body></html>"""
+        return page.replace("LINK_PLACEHOLDER", safe_link)
+
+    @app.get("/review-access/<token>")
+    def life_consume_review_link(token):
+        digest = hashlib.sha256(token.encode()).hexdigest()
+        with get_db() as con:
+            row = con.execute(q("SELECT expires_at,used FROM life_review_tokens WHERE token_hash=?"), (digest,)).fetchone()
+            if not row or row["used"] or float(row["expires_at"]) < time.time():
+                return "הקישור פג תוקף או שכבר נוצל. יש ליצור קישור חדש מתוך DEAN.", 410
+            con.execute(q("UPDATE life_review_tokens SET used=1 WHERE token_hash=?"), (digest,))
+        session.clear()
+        session.permanent = True
+        session["authenticated"] = True
+        session["review_only"] = True
+        return redirect("/life")
