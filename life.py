@@ -452,6 +452,79 @@ button.primary,.primary,.tabs button.active{background:rgba(207,174,112,.92)!imp
 .empty{border:1px dashed rgba(255,255,255,.3)!important}
 @media(max-width:900px){iframe#deanWorld{opacity:1!important}.wrap{background:transparent!important;padding-top:88px!important}.tabs{background:rgba(7,20,27,.62)!important}}
 
+
+/* BENIYAAL FINAL DESKTOP WORKSPACE — reset conflicting legacy layout rules */
+html,body{width:100%!important;min-height:100%!important;height:auto!important;margin:0!important;overflow-x:hidden!important;overflow-y:auto!important;background:transparent!important;color:#f5f0e5!important}
+body{position:relative!important;inset:auto!important;isolation:isolate!important}
+#deanWorld{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;height:100dvh!important;min-height:100dvh!important;display:block!important;visibility:visible!important;opacity:1!important;filter:none!important;z-index:0!important;pointer-events:none!important;border:0!important;background:transparent!important}
+.wrap{position:relative!important;inset:auto!important;z-index:2!important;display:block!important;grid-template-columns:none!important;grid-template-rows:none!important;gap:0!important;width:auto!important;max-width:none!important;height:auto!important;min-height:100dvh!important;margin:0 238px 0 0!important;padding:26px 30px 36px!important;overflow:visible!important;background:transparent!important;background-image:none!important;backdrop-filter:none!important}
+.tabs{position:fixed!important;inset:0 0 0 auto!important;z-index:40!important;width:238px!important;height:100dvh!important;min-height:100dvh!important;display:flex!important;flex-direction:column!important;align-items:stretch!important;justify-content:flex-start!important;gap:9px!important;margin:0!important;padding:30px 17px!important;overflow:hidden!important;border:0!important;border-left:1px solid rgba(255,255,255,.18)!important;border-radius:0!important;background:rgba(5,18,25,.72)!important;box-shadow:-12px 0 38px rgba(0,0,0,.18)!important;backdrop-filter:blur(18px)!important;-webkit-backdrop-filter:blur(18px)!important}
+.tabs:before{content:"בניאל"!important;display:block!important;padding:12px 12px 25px!important;margin-bottom:14px!important;border-bottom:1px solid rgba(255,255,255,.18)!important;color:#f2d9a7!important;font-size:28px!important;font-weight:700!important;letter-spacing:1px!important;text-align:center!important}
+.tabs:after{content:"יומן החיים שלי"!important;display:block!important;margin-top:auto!important;padding:18px 10px 5px!important;border-top:1px solid rgba(255,255,255,.16)!important;color:rgba(245,240,229,.72)!important;font-size:11px!important;text-align:center!important}
+.tabs button{width:100%!important;min-height:48px!important;padding:12px 14px!important;text-align:right!important;border:1px solid transparent!important;border-radius:11px!important;background:transparent!important;color:#f2eee4!important;font-size:14px!important;box-shadow:none!important}
+.tabs button.active{background:rgba(222,190,127,.2)!important;border-color:rgba(232,204,153,.4)!important;color:#ffe6b6!important;box-shadow:inset -3px 0 #e4c37e!important}
+.hero{position:relative!important;inset:auto!important;display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;grid-template-rows:auto auto auto auto!important;gap:12px 22px!important;min-height:0!important;height:auto!important;margin:0 0 17px!important;padding:23px 25px!important;overflow:hidden!important;border:1px solid rgba(255,255,255,.23)!important;border-radius:20px!important;background:rgba(5,20,27,.34)!important;background-image:linear-gradient(115deg,rgba(5,20,27,.52),rgba(5,20,27,.16))!important;box-shadow:0 16px 42px rgba(0,0,0,.16)!important;backdrop-filter:blur(12px)!important;-webkit-backdrop-filter:blur(12px)!important}
+.hero:before,.hero:after{content:none!important}
+.hero>.row{grid-column:1/-1!important;grid-row:1!important;padding-bottom:12px!important;border-bottom:1px solid rgba(255,255,255,.18)!important}
+.hero h1{grid-column:1!important;grid-row:2!important;margin:6px 0 0!important;color:#fff!important;font-size:clamp(30px,3.2vw,45px)!important;line-height:1.12!important;text-shadow:0 3px 18px rgba(0,0,0,.3)!important}
+.hero>#today{grid-column:1!important;grid-row:3!important;color:#f0d9aa!important;font-size:13px!important}
+.hero>p{grid-column:1!important;grid-row:4!important;max-width:620px!important;margin:0!important;color:rgba(250,247,239,.88)!important;line-height:1.7!important}
+.world-meta strong{color:#f2d9a7!important}
+.stats{grid-column:2!important;grid-row:2/5!important;align-self:center!important;display:grid!important;grid-template-columns:repeat(2,minmax(88px,1fr))!important;gap:9px!important;width:min(290px,30vw)!important;margin:0!important;padding:0!important;border:0!important}
+.stat{display:flex!important;flex-direction:column!important;gap:4px!important;padding:10px 12px!important;border:1px solid rgba(255,255,255,.17)!important;border-radius:12px!important;background:rgba(5,18,25,.23)!important}
+.stat b{color:#f5dca8!important;font-size:24px!important}
+.stat .muted{color:rgba(248,244,234,.82)!important;font-size:11px!important}
+.weather-dock{grid-column:1/-1!important;position:relative!important;inset:auto!important;display:flex!important;align-items:center!important;gap:13px!important;max-width:100%!important;margin:4px 0 0!important;padding:11px 14px!important;border:1px solid rgba(255,255,255,.2)!important;border-radius:13px!important;background:rgba(5,18,25,.3)!important;color:#fff!important;backdrop-filter:blur(10px)!important}
+.weather-dock b{color:#f5dca8!important}.weather-dock small,.weather-extra,.weather-updated{color:rgba(248,244,234,.85)!important}
+#overview{position:relative!important;inset:auto!important;display:grid!important;grid-template-columns:minmax(0,1.35fr) minmax(260px,.85fr)!important;grid-template-rows:auto auto!important;gap:14px!important;align-items:stretch!important;width:auto!important;height:auto!important;min-height:0!important;overflow:visible!important;padding:0!important;background:transparent!important;border:0!important;box-shadow:none!important}
+#overview>.card{position:relative!important;inset:auto!important;grid-row:auto!important;grid-column:auto!important;min-width:0!important;min-height:0!important;height:auto!important;overflow:visible!important;margin:0!important;padding:19px 21px!important;border:1px solid rgba(255,255,255,.18)!important;border-radius:16px!important;background:rgba(5,20,27,.34)!important;color:#f7f2e7!important;box-shadow:0 12px 30px rgba(0,0,0,.12)!important;backdrop-filter:blur(11px)!important;-webkit-backdrop-filter:blur(11px)!important}
+#overview>.card:first-child{grid-column:1!important;grid-row:1/3!important}
+#overview>.card:nth-child(2){grid-column:2!important;grid-row:1!important}
+#overview>.card:nth-child(3){grid-column:2!important;grid-row:2!important}
+.card h2{color:#f5dfb4!important;font-size:17px!important}
+.area{background:transparent!important;color:#fff!important;border-bottom:1px solid rgba(255,255,255,.13)!important}
+.area strong,.goal b{color:#fff!important}.area .muted,.goal .muted{color:rgba(245,240,229,.72)!important}
+.area>span:first-child{background:rgba(255,255,255,.12)!important}
+.bar{background:rgba(255,255,255,.17)!important}.bar i{background:linear-gradient(90deg,#9fb88a,#e4c37e)!important}
+.goal{border-color:rgba(255,255,255,.14)!important;color:#fff!important}
+label{color:#f2e6cd!important}
+input,textarea,select{background:rgba(5,18,25,.55)!important;color:#fff!important;border:1px solid rgba(255,255,255,.24)!important}
+input::placeholder,textarea::placeholder{color:rgba(245,240,229,.55)!important}
+button,.actions button,.card .row button{background:rgba(5,18,25,.42)!important;color:#f8f1e3!important;border:1px solid rgba(255,255,255,.2)!important}
+button.primary,.primary,.tabs button.active{background:rgba(207,174,112,.94)!important;color:#17262a!important;border-color:rgba(255,236,194,.55)!important}
+.empty{background:rgba(255,255,255,.06)!important;color:rgba(245,240,229,.78)!important;border:1px dashed rgba(255,255,255,.24)!important}
+.note{color:rgba(245,240,229,.58)!important}
+#goals,#daily,#history{position:relative!important;inset:auto!important;width:auto!important;height:auto!important;min-height:0!important;overflow:visible!important;padding:0!important;margin:0!important;background:transparent!important;color:#fff!important}
+#goals .card,#daily .card,#history .card{position:relative!important;inset:auto!important;max-height:none!important;overflow:visible!important;margin:0 0 14px!important;padding:20px!important;border:1px solid rgba(255,255,255,.18)!important;border-radius:16px!important;background:rgba(5,20,27,.36)!important;color:#fff!important;box-shadow:0 12px 30px rgba(0,0,0,.12)!important;backdrop-filter:blur(11px)!important}
+#goals .card h2,#daily .card h2,#history .card h2,#goals label,#daily label{color:#f5dfb4!important}
+#goals input,#daily input,#daily textarea{background:rgba(5,18,25,.55)!important;color:#fff!important}
+.hidden{display:none!important}
+@media(max-width:900px){
+ html,body{height:auto!important;min-height:100%!important;overflow-x:hidden!important;overflow-y:auto!important}
+ .wrap{position:relative!important;inset:auto!important;width:auto!important;height:auto!important;min-height:100dvh!important;margin:0!important;padding:86px 14px 28px!important;overflow:visible!important;display:block!important}
+ .tabs{position:fixed!important;inset:0 0 auto 0!important;width:100%!important;height:68px!important;min-height:68px!important;padding:8px 10px!important;flex-direction:row!important;align-items:center!important;gap:5px!important;overflow-x:auto!important;border:0!important;border-bottom:1px solid rgba(255,255,255,.18)!important;background:rgba(5,18,25,.72)!important;backdrop-filter:blur(16px)!important}
+ .tabs:before{font-size:15px!important;letter-spacing:1px!important;padding:0 7px!important;margin:0!important;border:0!important;white-space:nowrap!important}
+ .tabs:after{display:none!important}
+ .tabs button{width:auto!important;min-height:42px!important;flex:1 0 auto!important;padding:9px 10px!important;font-size:12px!important}
+ .hero{grid-template-columns:1fr!important;grid-template-rows:auto!important;min-height:0!important;padding:18px!important}
+ .hero>.row,.hero h1,.hero>#today,.hero>p,.stats,.weather-dock{grid-column:1!important;grid-row:auto!important}
+ .stats{width:100%!important;grid-template-columns:repeat(2,minmax(0,1fr))!important}
+ #overview{grid-template-columns:1fr!important;grid-template-rows:auto!important}
+ #overview>.card:first-child,#overview>.card:nth-child(2),#overview>.card:nth-child(3){grid-column:1!important;grid-row:auto!important}
+}
+@media(max-width:560px){
+ .wrap{padding:80px 10px 22px!important}
+ .hero{padding:15px!important;border-radius:16px!important}
+ .hero h1{font-size:28px!important}
+ .stats{gap:7px!important}
+ .stat{padding:9px!important}
+ .stat b{font-size:22px!important}
+ .weather-dock{flex-wrap:wrap!important;gap:8px!important}
+ .weather-updated{display:none!important}
+ #overview>.card,#goals .card,#daily .card,#history .card{padding:15px!important}
+ .tabs:before{display:none!important}
+}
+
 </style><iframe id="deanWorld" title="העולם של בניאל" src="/life-preview" loading="eager" aria-hidden="true" onload="try{this.contentDocument.querySelector('.hud').style.display='none';this.contentDocument.querySelector('.status')?.remove()}catch(e){}"></iframe><main class="wrap"><header class="hero"><div class="row"><span class="brand"><span class="logo">✦</span><span>בניאל · יומן החיים שלי</span></span><div class="world-meta"><strong id="worldClock">--:--</strong><span id="worldDate"></span></div></div><h1>הדרך שלי, בקצב שלי</h1><div class="muted" id="today"></div><p class="muted">מסתכלים על התמונה הגדולה, מסמנים התקדמות ובונים את הדרך שלך בקצב שלך.</p><div class="stats"><div class="stat"><b id="goalCount">0</b><span class="muted">מטרות פעילות</span></div><div class="stat"><b id="avg">0%</b><span class="muted">התקדמות ממוצעת</span></div><div class="stat"><b id="checks">0</b><span class="muted">דיווחים החודש</span></div><div class="stat"><b id="wins">0</b><span class="muted">מטרות שהושלמו</span></div></div><div class="weather-dock" id="liveWeather" aria-live="polite"><span class="weather-symbol">🌤️</span><span><b id="weatherTemp">--°</b><small id="weatherCondition">מתחבר למזג האוויר…</small></span><span class="weather-extra" id="weatherDetails">מיקום · לחות · רוח</span><span class="weather-updated" id="weatherUpdated">עדכון אוטומטי</span></div></header>
 <nav class="tabs"><button class="active" data-tab="overview">תמונה כללית</button><button data-tab="goals">מטרות ומדדים</button><button data-tab="daily">דיווח יומי</button><button data-tab="history">היסטוריה</button></nav>
 <section id="overview"><div class="card"><div class="row"><h2>תחומי החיים</h2><button id="addArea">＋ תחום חדש</button></div><div class="grid" id="areas"></div></div><div class="card"><h2>דורש תשומת לב</h2><div id="attention"></div></div><div class="card"><h2>מגמת ההתקדמות</h2><div id="overviewTrend"></div></div></section>
