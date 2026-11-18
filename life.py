@@ -755,7 +755,7 @@ def register_life(app, require_login, require_csrf, csrf_token, get_db, postgres
 
 
     # Short-lived, one-time, read-only access for an external visual review.
-    import hashlib, secrets, time
+    import hashlib, secrets, time, html
     from flask import session, make_response
 
     with get_db() as con:
