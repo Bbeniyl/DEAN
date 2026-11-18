@@ -22,6 +22,55 @@ body{background:transparent!important;background-image:none!important;position:r
 .wrap{position:relative;z-index:1}
 .hero,.card,.area{background:rgba(14,29,40,.48);border-color:rgba(255,255,255,.25);color:#fff}
 .hero{background:rgba(10,24,36,.48)}
+
+/* DEAN WORLD JOURNAL — immersive, calm, mobile-first */
+:root{--gold:#e9cf9a;--glass:rgba(8,22,29,.34);--glass2:rgba(8,22,29,.48);--softline:rgba(255,255,255,.16)}
+html{min-height:100%;background:#172a30}
+body{min-height:100vh;background:transparent!important;color:#f7f4eb!important;font-family:Arial,sans-serif}
+#deanWorld{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;z-index:-1!important;display:block!important;pointer-events:none!important}
+.wrap{max-width:1040px!important;padding:clamp(14px,3vw,34px)!important;margin:0 auto!important;z-index:2!important}
+.hero{background:linear-gradient(115deg,rgba(7,22,29,.56),rgba(7,22,29,.12))!important;border:1px solid var(--softline)!important;border-radius:28px!important;padding:clamp(19px,4vw,34px)!important;box-shadow:0 18px 60px #07151b45!important;backdrop-filter:blur(10px)!important}
+.hero:after{content:none!important}
+.brand{letter-spacing:.4px!important}.logo{background:rgba(233,207,154,.2)!important;border:1px solid #e9cf9a88!important;color:var(--gold)!important;border-radius:50%!important}
+.hero h1{font-size:clamp(27px,5vw,43px)!important;line-height:1.15!important;letter-spacing:-.7px!important;margin:22px 0 8px!important}
+.hero p{max-width:560px;line-height:1.8}
+.world-meta strong{font-size:clamp(24px,4vw,34px)!important;color:var(--gold)}
+.stats{display:flex!important;flex-wrap:wrap!important;gap:0!important;margin-top:24px!important;border-top:1px solid var(--softline);padding-top:16px}
+.stat{flex:1 1 115px!important;background:transparent!important;border:0!important;border-left:1px solid var(--softline)!important;border-radius:0!important;padding:5px 15px!important}
+.stat:last-child{border-left:0!important}.stat b{font-size:clamp(23px,3vw,30px)!important;color:var(--gold)!important;font-weight:500}
+.tabs{position:sticky;top:8px;z-index:5;display:flex;gap:7px;padding:7px;margin:15px 0 20px!important;background:rgba(5,18,25,.48);border:1px solid var(--softline);border-radius:18px;backdrop-filter:blur(16px);box-shadow:0 8px 28px #06151b33}
+.tabs button{flex:1;white-space:nowrap;background:transparent!important;color:#f5f0e5!important;border:1px solid transparent!important;box-shadow:none!important;padding:11px 9px!important;border-radius:12px!important}
+.tabs button.active{background:rgba(233,207,154,.2)!important;border-color:#e9cf9a66!important;color:#ffe4ae!important}
+.card{background:var(--glass)!important;border:1px solid var(--softline)!important;border-radius:23px!important;padding:clamp(17px,3vw,25px)!important;margin-bottom:16px!important;box-shadow:0 14px 42px #06151b35!important;backdrop-filter:blur(16px)!important}
+.card h2{font-size:19px!important;color:#f7e8c8!important;margin:0 0 15px!important}
+.grid{grid-template-columns:repeat(auto-fit,minmax(210px,1fr))!important;gap:9px!important}
+.area{min-height:0!important;display:grid;grid-template-columns:42px 1fr;grid-template-rows:auto auto;align-items:center;column-gap:12px;background:rgba(255,255,255,.075)!important;border:1px solid rgba(255,255,255,.1)!important;border-radius:17px!important;padding:14px 15px!important;margin:0!important;box-shadow:none!important}
+.area>span:first-child{grid-row:1/3;width:40px;height:40px;display:grid;place-items:center;border-radius:50%;background:rgba(233,207,154,.15);font-size:20px}
+.area strong{margin:0!important;font-size:15px;color:#fff!important}
+.area .muted{font-size:12px!important;color:#e6dfd1!important}
+.area .bar{grid-column:2;margin:6px 0 0!important;height:4px!important}
+.bar{background:#ffffff25!important}.bar i{background:linear-gradient(90deg,#c5a66f,#f4e2b9)!important}
+.goal{border-color:rgba(255,255,255,.13)!important;padding:15px 0!important}
+.goal b{color:#fff}.goal .muted{color:#d9d5ca!important}
+label{color:#e8dcc4!important}
+input,textarea,select{border:1px solid rgba(255,255,255,.22)!important;border-radius:13px!important;background:rgba(245,244,235,.95)!important;color:#182a2d!important}
+button{transition:transform .15s ease,background .15s ease}
+button:active{transform:scale(.98)}
+button.primary,.primary{background:linear-gradient(135deg,#f0d9a9,#d6b77d)!important;color:#1e2d2d!important;border:0!important}
+.actions button{background:rgba(233,207,154,.16)!important;color:#f5dfb5!important;border:1px solid #e9cf9a55!important}
+.empty{background:rgba(255,255,255,.075)!important;border:1px dashed rgba(255,255,255,.2);border-radius:16px!important;color:#f4eddf!important}
+.note{color:#ddd5c6!important;padding:10px 0 24px}
+.hidden{display:none!important}
+@media(max-width:650px){
+ .wrap{padding:12px!important}
+ .hero{border-radius:22px!important;padding:18px!important}
+ .hero h1{margin-top:17px!important}
+ .stats{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important}
+ .stat{border-left:0!important;border-bottom:1px solid var(--softline)!important;padding:9px!important}
+ .tabs{top:5px;overflow-x:auto}.tabs button{flex:0 0 auto;font-size:13px!important}
+ .grid{grid-template-columns:1fr!important}
+}
+
 </style><iframe id="deanWorld" title="DEAN 3D world" src="/life-preview" aria-hidden="true" onload="try{this.contentDocument.querySelector('.hud').style.display='none';this.contentDocument.querySelector('.status')?.remove()}catch(e){}"></iframe><main class="wrap"><header class="hero"><div class="row"><span class="brand"><span class="logo">✦</span><span>בניאל · יומן החיים שלי</span></span><div class="world-meta"><strong id="worldClock">--:--</strong><span id="worldDate"></span></div></div><h1>הדרך שלי, בקצב שלי</h1><div class="muted" id="today"></div><p class="muted">מסתכלים על התמונה הגדולה, מסמנים התקדמות ובונים את הדרך שלך בקצב שלך.</p><div class="stats"><div class="stat"><b id="goalCount">0</b><span class="muted">מטרות פעילות</span></div><div class="stat"><b id="avg">0%</b><span class="muted">התקדמות ממוצעת</span></div><div class="stat"><b id="checks">0</b><span class="muted">דיווחים החודש</span></div><div class="stat"><b id="wins">0</b><span class="muted">מטרות שהושלמו</span></div></div></header>
 <nav class="tabs"><button class="active" data-tab="overview">תמונה כללית</button><button data-tab="goals">מטרות ומדדים</button><button data-tab="daily">דיווח יומי</button><button data-tab="history">היסטוריה</button></nav>
 <section id="overview"><div class="card"><div class="row"><h2>תחומי החיים</h2><button id="addArea">＋ תחום חדש</button></div><div class="grid" id="areas"></div></div><div class="card"><h2>דורש תשומת לב</h2><div id="attention"></div></div></section>
