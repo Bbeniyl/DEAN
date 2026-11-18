@@ -71,6 +71,71 @@ button.primary,.primary{background:linear-gradient(135deg,#f0d9a9,#d6b77d)!impor
  .grid{grid-template-columns:1fr!important}
 }
 
+
+/* DEAN DESKTOP WORKSPACE — app-like computer interface */
+:root{--desk:#0b151b;--panel:rgba(17,31,39,.92);--panel2:rgba(24,42,50,.88);--edge:rgba(214,226,220,.13);--accent:#d9bd83}
+html,body{min-height:100%;background:var(--desk)!important;color:#e9eee9!important}
+body{overflow-x:hidden}
+#deanWorld{position:fixed!important;inset:0 0 0 auto!important;width:100%!important;height:100%!important;z-index:-2!important;opacity:.26!important;filter:saturate(.72) brightness(.7)}
+.wrap{width:auto!important;max-width:none!important;min-height:100vh;margin:0 236px 0 0!important;padding:28px 34px 48px!important;background:linear-gradient(115deg,rgba(8,18,23,.90),rgba(8,18,23,.72))!important;z-index:1!important}
+.tabs{position:fixed!important;z-index:20!important;right:0!important;top:0!important;bottom:0!important;width:218px!important;margin:0!important;padding:28px 16px!important;display:flex!important;flex-direction:column!important;justify-content:flex-start!important;gap:9px!important;overflow:visible!important;background:rgba(10,22,28,.97)!important;border-left:1px solid var(--edge)!important;box-shadow:-18px 0 55px #0003!important}
+.tabs:before{content:"DEAN";display:block;color:#f2e6c9;font-size:23px;font-weight:800;letter-spacing:5px;padding:8px 12px 2px}
+.tabs:after{content:"LIFE WORKSPACE  ·  PERSONAL OS";display:block;order:9;margin-top:auto;padding:16px 10px 8px;border-top:1px solid var(--edge);font-size:9px;letter-spacing:1.4px;line-height:1.8;color:#8e9e9d}
+.tabs button{width:100%!important;text-align:right!important;border:1px solid transparent!important;border-radius:10px!important;background:transparent!important;color:#aebbb7!important;padding:14px 13px!important;box-shadow:none!important;font-size:14px!important}
+.tabs button:hover{background:#ffffff0b!important;color:#fff!important}
+.tabs button.active{background:linear-gradient(90deg,rgba(217,189,131,.18),rgba(217,189,131,.05))!important;border-color:rgba(217,189,131,.25)!important;color:#f0d9a9!important;box-shadow:inset -3px 0 #d9bd83!important}
+.hero{display:grid!important;grid-template-columns:1fr auto!important;align-items:center!important;gap:12px 24px!important;padding:24px 28px!important;margin-bottom:22px!important;border-radius:16px!important;background:linear-gradient(115deg,rgba(23,43,49,.96),rgba(14,28,35,.92))!important;border:1px solid var(--edge)!important;box-shadow:0 18px 50px #0002!important}
+.hero>.row{grid-column:1/-1!important;padding-bottom:14px!important;border-bottom:1px solid var(--edge)!important}
+.hero h1{font-size:clamp(25px,3vw,36px)!important;margin:6px 0!important;letter-spacing:-.5px}
+.hero>p{margin:4px 0!important;max-width:650px!important;color:#b8c4bf!important}
+.hero .muted{color:#aab9b3!important}
+.world-meta strong{color:#f1d9a6!important;font-variant-numeric:tabular-nums}
+.logo{background:linear-gradient(145deg,#d9bd83,#8d7750)!important;color:#17252a!important;border-radius:10px!important}
+.stats{grid-column:1/-1!important;display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:0!important;margin-top:10px!important;border-top:1px solid var(--edge)!important}
+.stat{background:transparent!important;border:0!important;border-left:1px solid var(--edge)!important;border-radius:0!important;padding:14px 18px 4px!important}
+.stat:last-child{border-left:0!important}
+.stat b{font-size:27px!important;color:#f0d8a7!important;font-weight:500!important}
+.stat .muted{font-size:12px!important}
+section{min-height:420px}
+.card{background:rgba(16,30,37,.91)!important;border:1px solid var(--edge)!important;border-radius:14px!important;padding:22px 24px!important;margin-bottom:16px!important;box-shadow:0 12px 36px #0002!important;backdrop-filter:blur(16px)!important}
+.card h2{font-size:16px!important;color:#f0dfbd!important;font-weight:600!important;margin:0 0 18px!important}
+#overview{display:grid!important;grid-template-columns:minmax(0,1.65fr) minmax(280px,.85fr)!important;gap:16px!important;align-items:start!important}
+#overview>.card{margin:0!important;min-width:0!important}
+#overview>.card:first-child{grid-row:span 2!important}
+.grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:0!important;margin-top:14px!important}
+.area{display:grid!important;grid-template-columns:36px 1fr auto!important;align-items:center!important;gap:5px 10px!important;min-height:78px!important;margin:0!important;padding:14px 8px!important;border:0!important;border-bottom:1px solid var(--edge)!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}
+.area>span:first-child{grid-row:span 2!important;font-size:22px!important}
+.area strong{margin:0!important;font-size:14px!important}
+.area .muted{font-size:11px!important}
+.area .bar{grid-column:2/-1!important;margin:4px 0 0!important;height:4px!important}
+.bar{background:#ffffff16!important}.bar i{background:linear-gradient(90deg,#9eaa82,#e2c98f)!important}
+.goal{border-color:var(--edge)!important;padding:16px 0!important}
+input,textarea,select{background:#0b1a21!important;color:#edf1e9!important;border:1px solid #ffffff22!important;border-radius:9px!important}
+input::placeholder,textarea::placeholder{color:#778984!important}
+button{border-radius:9px!important}
+.primary,.tabs button.active{background:#d9bd83!important;color:#18262b!important}
+.actions button{background:#263b40!important;color:#e8d8b5!important}
+.empty{background:#ffffff08!important;color:#aebbb7!important;border:1px dashed var(--edge)!important}
+.note{color:#71827d!important}
+@media(max-width:900px){
+ .wrap{margin:0!important;padding:16px!important;padding-top:90px!important}
+ .tabs{top:0!important;right:0!important;left:0!important;bottom:auto!important;width:100%!important;height:auto!important;min-height:66px!important;padding:9px 12px!important;flex-direction:row!important;align-items:center!important;gap:6px!important;border-left:0!important;border-bottom:1px solid var(--edge)!important;overflow-x:auto!important}
+ .tabs:before{font-size:15px!important;padding:0 8px!important;letter-spacing:2px!important}
+ .tabs:after{display:none!important}
+ .tabs button{width:auto!important;white-space:nowrap!important;padding:10px 11px!important;font-size:12px!important}
+ #overview{grid-template-columns:1fr!important}
+ #overview>.card:first-child{grid-row:auto!important}
+}
+@media(max-width:560px){
+ .wrap{padding:12px!important;padding-top:82px!important}
+ .hero{padding:17px!important;grid-template-columns:1fr!important}
+ .stats{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+ .stat{border-bottom:1px solid var(--edge)!important}
+ .grid{grid-template-columns:1fr!important}
+ .card{padding:17px!important}
+ .tabs:before{display:none!important}
+}
+
 </style><iframe id="deanWorld" title="DEAN 3D world" src="/life-preview" aria-hidden="true" onload="try{this.contentDocument.querySelector('.hud').style.display='none';this.contentDocument.querySelector('.status')?.remove()}catch(e){}"></iframe><main class="wrap"><header class="hero"><div class="row"><span class="brand"><span class="logo">✦</span><span>בניאל · יומן החיים שלי</span></span><div class="world-meta"><strong id="worldClock">--:--</strong><span id="worldDate"></span></div></div><h1>הדרך שלי, בקצב שלי</h1><div class="muted" id="today"></div><p class="muted">מסתכלים על התמונה הגדולה, מסמנים התקדמות ובונים את הדרך שלך בקצב שלך.</p><div class="stats"><div class="stat"><b id="goalCount">0</b><span class="muted">מטרות פעילות</span></div><div class="stat"><b id="avg">0%</b><span class="muted">התקדמות ממוצעת</span></div><div class="stat"><b id="checks">0</b><span class="muted">דיווחים החודש</span></div><div class="stat"><b id="wins">0</b><span class="muted">מטרות שהושלמו</span></div></div></header>
 <nav class="tabs"><button class="active" data-tab="overview">תמונה כללית</button><button data-tab="goals">מטרות ומדדים</button><button data-tab="daily">דיווח יומי</button><button data-tab="history">היסטוריה</button></nav>
 <section id="overview"><div class="card"><div class="row"><h2>תחומי החיים</h2><button id="addArea">＋ תחום חדש</button></div><div class="grid" id="areas"></div></div><div class="card"><h2>דורש תשומת לב</h2><div id="attention"></div></div></section>
