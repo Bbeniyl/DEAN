@@ -1,4 +1,5 @@
 """Private editable life dashboard for DEAN."""
+import json
 from flask import jsonify, render_template_string, request
 
 DEFAULT_AREAS = [
@@ -499,7 +500,10 @@ def register_life(app, require_login, require_csrf, csrf_token, get_db, postgres
 
     @app.get("/life")
     @require_login
-    def life_page(): return render_template_string(PAGE,csrf=csrf_token())
+    def life_page():
+        # The page contains CSS/JavaScript braces; substitute only the CSRF JSON token
+        # instead of parsing the entire document as a Jinja template.
+        return PAGE.replace("{{ csrf|tojson }}", json.dumps(csrf_token()))
 
     @app.get("/api/life/dashboard")
     @require_login
