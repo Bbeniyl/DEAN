@@ -260,6 +260,107 @@ button{border-radius:10px!important}
 }
 
 
+/* DEAN — full-screen command center. No page scrolling, no stacked card feed. */
+:root{--d-forest:#102c24;--d-forest2:#1b4032;--d-gold:#e4c37e;--d-cream:#f5f0e4;--d-ink:#18372b;--d-muted:#d6dfd2;--d-line:#ffffff3d}
+html,body{width:100%!important;height:100%!important;min-height:0!important;margin:0!important;overflow:hidden!important;background:#142f27!important}
+body{position:relative!important;isolation:isolate!important}
+#deanWorld{display:none!important}
+.wrap{position:fixed!important;inset:0 238px 0 0!important;width:auto!important;max-width:none!important;height:100dvh!important;min-height:0!important;box-sizing:border-box!important;margin:0!important;padding:22px 28px 20px!important;overflow:hidden!important;display:grid!important;grid-template-rows:minmax(245px,37vh) minmax(0,1fr)!important;gap:15px!important;background:linear-gradient(90deg,rgba(10,35,27,.78),rgba(10,35,27,.28)),url('https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&w=2200&q=90') center/cover no-repeat!important;color:#fff!important}
+.tabs{position:fixed!important;inset:0 0 0 auto!important;width:238px!important;height:100dvh!important;min-height:0!important;box-sizing:border-box!important;z-index:100!important;display:flex!important;flex-direction:column!important;align-items:stretch!important;justify-content:flex-start!important;gap:9px!important;padding:34px 19px!important;margin:0!important;overflow:hidden!important;border:0!important;border-left:1px solid #ffffff24!important;border-radius:0!important;background:linear-gradient(180deg,rgba(11,39,30,.97),rgba(8,28,23,.97))!important;box-shadow:-14px 0 45px #061b1540!important}
+.tabs:before{content:"♛  DEAN"!important;display:block!important;padding:5px 12px 26px!important;margin-bottom:16px!important;border-bottom:1px solid #ffffff28!important;color:#f4dfb2!important;font-family:Georgia,serif!important;font-size:31px!important;letter-spacing:4px!important;text-align:center!important}
+.tabs:after{content:"יומן החיים  ·  הדרך שלך"!important;display:block!important;margin-top:auto!important;padding:18px 10px 4px!important;border-top:1px solid #ffffff28!important;color:#b9c9bb!important;font-size:11px!important;text-align:center!important}
+.tabs button{width:100%!important;min-height:50px!important;padding:12px 15px!important;text-align:right!important;border:1px solid transparent!important;border-radius:8px!important;background:transparent!important;color:#e6ece3!important;font-size:15px!important;box-shadow:none!important}
+.tabs button:before{display:inline-block!important;width:34px!important;font-size:18px!important;vertical-align:middle!important}
+.tabs button:nth-child(1):before{content:"⌂"}.tabs button:nth-child(2):before{content:"◉"}.tabs button:nth-child(3):before{content:"✎"}.tabs button:nth-child(4):before{content:"▤"}
+.tabs button.active{background:linear-gradient(90deg,#e4c37e,#c99d50)!important;color:#17362a!important;border-color:#f5e3bb!important;box-shadow:0 5px 18px #071d1740!important;font-weight:700!important}
+.hero{position:relative!important;isolation:isolate!important;display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;grid-template-rows:auto 1fr auto!important;align-content:stretch!important;gap:10px 22px!important;min-height:0!important;height:100%!important;box-sizing:border-box!important;margin:0!important;padding:21px 26px 18px!important;overflow:hidden!important;border:1px solid #ffffff5a!important;border-radius:4px!important;background:linear-gradient(90deg,rgba(8,31,23,.80),rgba(8,31,23,.12)),url('https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=2200&q=90') center 47%/cover!important;box-shadow:0 18px 50px #061b1540!important}
+.hero:before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(0deg,rgba(8,30,23,.82),transparent 78%)}
+.hero>.row{grid-column:1/-1!important;grid-row:1!important;align-items:center!important;padding-bottom:10px!important;border-bottom:1px solid #ffffff54!important}
+.brand{color:#fff!important;font-size:17px!important;letter-spacing:.4px!important}
+.logo{width:43px!important;height:43px!important;border-radius:50%!important;background:#e4c37e!important;color:#17362a!important;font-size:22px!important;box-shadow:0 4px 18px #071d1755!important}
+.world-meta strong{color:#fff1cf!important;font-size:26px!important;text-shadow:0 2px 14px #071d17!important}
+.world-meta span{color:#fff!important;font-size:12px!important}
+.hero h1{grid-column:1!important;grid-row:2!important;align-self:end!important;margin:0!important;color:#fff!important;font-family:Georgia,Arial,sans-serif!important;font-size:clamp(32px,4vw,52px)!important;line-height:1.05!important;text-shadow:0 3px 22px #061c15!important}
+.hero>#today{grid-column:1!important;grid-row:3!important;color:#f4dfb2!important;font-size:13px!important}
+.hero>p{grid-column:1!important;grid-row:3!important;justify-self:start!important;margin:0 0 0 180px!important;align-self:center!important;max-width:420px!important;color:#f7f4e9!important;font-size:14px!important;line-height:1.7!important;text-shadow:0 2px 12px #061c15!important}
+.stats{grid-column:2!important;grid-row:2/4!important;align-self:center!important;display:flex!important;flex-direction:column!important;gap:12px!important;width:190px!important;margin:0!important;padding:0!important;border:0!important}
+.stat{display:grid!important;grid-template-columns:1fr auto!important;align-items:center!important;gap:3px 10px!important;padding:8px 0!important;border:0!important;border-bottom:1px solid #ffffff69!important;border-radius:0!important;background:transparent!important}
+.stat b{grid-column:2!important;grid-row:1/3!important;color:#ffe7b2!important;font-size:27px!important;font-weight:700!important;text-shadow:0 2px 12px #061c15!important}
+.stat .muted{color:#fff!important;font-size:12px!important}
+.weather-dock{position:absolute!important;left:24px!important;bottom:18px!important;display:flex!important;align-items:center!important;gap:12px!important;max-width:55%!important;margin:0!important;padding:9px 14px!important;border:1px solid #ffffff68!important;border-radius:3px!important;background:rgba(10,39,29,.58)!important;backdrop-filter:blur(9px)!important;color:#fff!important}
+.weather-dock b{color:#ffe7b2!important;font-size:21px!important}.weather-dock small,.weather-extra,.weather-updated{color:#fff!important}
+#overview{min-height:0!important;height:100%!important;overflow:hidden!important;display:grid!important;grid-template-columns:minmax(0,1.25fr) minmax(280px,.85fr)!important;grid-template-rows:minmax(0,1fr) minmax(0,.75fr)!important;gap:0 30px!important;align-items:stretch!important;padding:2px 4px!important;background:linear-gradient(100deg,rgba(247,244,233,.94),rgba(247,244,233,.82))!important;color:var(--d-ink)!important;border-top:3px solid var(--d-gold)!important;border-bottom:3px solid var(--d-gold)!important;box-shadow:0 15px 45px #071d1740!important}
+#overview>.card{min-width:0!important;min-height:0!important;overflow:hidden!important;margin:0!important;padding:15px 18px!important;border:0!important;border-radius:0!important;border-left:1px solid #b8b9a8!important;background:transparent!important;box-shadow:none!important;color:var(--d-ink)!important;backdrop-filter:none!important}
+#overview>.card:first-child{grid-column:1!important;grid-row:1/3!important;border-left:1px solid #b8b9a8!important}
+#overview>.card:nth-child(2){grid-column:2!important;grid-row:1!important;border-bottom:1px solid #b8b9a8!important}
+#overview>.card:nth-child(3){grid-column:2!important;grid-row:2!important}
+.card h2{color:#183b2c!important;font-size:16px!important;font-weight:700!important;margin:0 0 12px!important}
+#overview>.card>.row{align-items:center!important}
+#overview .grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;grid-auto-rows:minmax(0,1fr)!important;gap:2px 18px!important;margin-top:8px!important}
+#overview .area{min-height:0!important;height:100%!important;box-sizing:border-box!important;display:grid!important;grid-template-columns:35px 1fr auto!important;grid-template-rows:1fr 5px!important;align-content:center!important;gap:4px 9px!important;margin:0!important;padding:7px 2px!important;border:0!important;border-bottom:1px solid #d7d5c8!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;color:#183b2c!important}
+#overview .area>span:first-child{grid-row:1!important;width:31px!important;height:31px!important;display:grid!important;place-items:center!important;border-radius:50%!important;background:#e4eadc!important;font-size:17px!important}
+#overview .area strong{font-size:12px!important;color:#183b2c!important}
+#overview .area .muted{font-size:10px!important;color:#69796c!important}
+#overview .area .bar{grid-column:2/-1!important;grid-row:2!important;height:4px!important;margin:0!important;background:#dfe2d7!important}
+#overview .bar i{background:linear-gradient(90deg,#3f8053,#d1a44e)!important}
+#overview .goal{padding:7px 0!important;border:0!important;border-bottom:1px solid #d7d5c8!important}
+#overview .goal b{font-size:13px!important;color:#183b2c!important}
+#overview .goal .muted{font-size:10px!important;color:#69796c!important}
+#overview .chart{width:100%!important;height:calc(100% - 35px)!important;max-height:135px!important}
+#overview .chart polyline{stroke:#2d8153!important;stroke-width:3!important}
+#overview .chart circle{fill:#c69b4f!important}
+#overview .chart-labels{font-size:9px!important;color:#69796c!important}
+#overview .empty{padding:12px!important;background:transparent!important;color:#758275!important;border:0!important}
+.card button{font-size:11px!important;padding:6px 10px!important}
+#goals,#daily,#history{position:absolute!important;inset:0!important;height:100%!important;min-height:0!important;overflow:hidden!important;padding:22px 28px!important;box-sizing:border-box!important;background:linear-gradient(110deg,rgba(245,242,230,.97),rgba(245,242,230,.90))!important;color:#183b2c!important}
+#goals .card,#daily .card,#history .card{max-height:100%!important;overflow:auto!important;background:transparent!important;border:0!important;border-bottom:1px solid #c8c8b8!important;border-radius:0!important;box-shadow:none!important;color:#183b2c!important}
+#goals .card h2,#daily .card h2,#history .card h2{color:#183b2c!important}
+#goals label,#daily label{color:#183b2c!important}
+#goals input,#daily input,#daily textarea{background:#fff!important;color:#183b2c!important}
+.note{display:none!important}
+@media(max-width:900px){
+ .tabs{inset:0 0 auto 0!important;width:100%!important;height:62px!important;min-height:0!important;flex-direction:row!important;align-items:center!important;justify-content:space-around!important;padding:5px 7px!important;gap:3px!important;border:0!important;border-bottom:1px solid #ffffff45!important}
+ .tabs:before{content:"DEAN"!important;display:block!important;padding:0 8px!important;margin:0!important;border:0!important;font-size:17px!important;letter-spacing:1px!important}
+ .tabs:after{display:none!important}
+ .tabs button{width:auto!important;min-height:40px!important;flex:1 1 auto!important;text-align:center!important;padding:7px 5px!important;font-size:10px!important}
+ .tabs button:before{width:15px!important;font-size:13px!important}
+ .wrap{inset:62px 0 0 0!important;height:calc(100dvh - 62px)!important;padding:10px!important;grid-template-rows:minmax(205px,36dvh) minmax(0,1fr)!important;gap:8px!important}
+ .hero{padding:12px!important;gap:6px!important}
+ .hero h1{font-size:26px!important}
+ .hero>p{margin:0 0 0 90px!important;font-size:10px!important}
+ .world-meta strong{font-size:20px!important}
+ .stats{width:112px!important;gap:4px!important}
+ .stat{padding:4px 0!important}.stat b{font-size:19px!important}.stat .muted{font-size:9px!important}
+ .weather-dock{left:10px!important;bottom:9px!important;max-width:65%!important;padding:5px 8px!important;gap:6px!important;font-size:10px!important}
+ #overview{grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr)!important;grid-template-rows:minmax(0,1fr) minmax(0,.7fr)!important;gap:0 8px!important}
+ #overview>.card{padding:8px 9px!important}
+ #overview>.card h2{font-size:12px!important;margin-bottom:6px!important}
+ #overview .grid{grid-template-columns:1fr!important;gap:0!important}
+ #overview .area{grid-template-columns:25px 1fr auto!important;gap:3px 5px!important;padding:3px 0!important}
+ #overview .area>span:first-child{width:23px!important;height:23px!important;font-size:13px!important}
+ #overview .area strong{font-size:10px!important}
+ #overview .area .muted{font-size:8px!important}
+ #overview>.card:first-child{grid-row:1/3!important}
+ #overview>.card:nth-child(2){grid-column:2!important;grid-row:1!important}
+ #overview>.card:nth-child(3){grid-column:2!important;grid-row:2!important}
+}
+@media(max-width:560px){
+ .wrap{padding:7px!important;grid-template-rows:minmax(195px,35dvh) minmax(0,1fr)!important}
+ .hero{grid-template-columns:minmax(0,1fr) 90px!important;padding:9px!important}
+ .hero h1{font-size:23px!important}
+ .hero>p{display:none!important}
+ .hero>#today{font-size:9px!important}
+ .brand{font-size:12px!important}.logo{width:30px!important;height:30px!important;font-size:16px!important}
+ .world-meta strong{font-size:17px!important}.world-meta span{font-size:9px!important}
+ .stats{width:86px!important}.stat b{font-size:17px!important}.stat .muted{font-size:8px!important}
+ .weather-dock{max-width:72%!important}.weather-extra,.weather-updated{display:none!important}
+ #overview{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important}
+ #overview>.card{padding:6px!important}
+ #overview .chart{max-height:75px!important}
+ #overview .goal b{font-size:10px!important}
+}
+
+
 </style><iframe id="deanWorld" title="DEAN 3D world" src="/life-preview" loading="eager" aria-hidden="true" onload="try{this.contentDocument.querySelector('.hud').style.display='none';this.contentDocument.querySelector('.status')?.remove()}catch(e){}"></iframe><main class="wrap"><header class="hero"><div class="row"><span class="brand"><span class="logo">✦</span><span>בניאל · יומן החיים שלי</span></span><div class="world-meta"><strong id="worldClock">--:--</strong><span id="worldDate"></span></div></div><h1>הדרך שלי, בקצב שלי</h1><div class="muted" id="today"></div><p class="muted">מסתכלים על התמונה הגדולה, מסמנים התקדמות ובונים את הדרך שלך בקצב שלך.</p><div class="stats"><div class="stat"><b id="goalCount">0</b><span class="muted">מטרות פעילות</span></div><div class="stat"><b id="avg">0%</b><span class="muted">התקדמות ממוצעת</span></div><div class="stat"><b id="checks">0</b><span class="muted">דיווחים החודש</span></div><div class="stat"><b id="wins">0</b><span class="muted">מטרות שהושלמו</span></div></div><div class="weather-dock" id="liveWeather" aria-live="polite"><span class="weather-symbol">🌤️</span><span><b id="weatherTemp">--°</b><small id="weatherCondition">מתחבר למזג האוויר…</small></span><span class="weather-extra" id="weatherDetails">מיקום · לחות · רוח</span><span class="weather-updated" id="weatherUpdated">עדכון אוטומטי</span></div></header>
 <nav class="tabs"><button class="active" data-tab="overview">תמונה כללית</button><button data-tab="goals">מטרות ומדדים</button><button data-tab="daily">דיווח יומי</button><button data-tab="history">היסטוריה</button></nav>
 <section id="overview"><div class="card"><div class="row"><h2>תחומי החיים</h2><button id="addArea">＋ תחום חדש</button></div><div class="grid" id="areas"></div></div><div class="card"><h2>דורש תשומת לב</h2><div id="attention"></div></div><div class="card"><h2>מגמת ההתקדמות</h2><div id="overviewTrend"></div></div></section>
