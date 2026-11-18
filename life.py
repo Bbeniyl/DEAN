@@ -26,9 +26,9 @@ body{background:transparent!important;background-image:none!important;position:r
 /* DEAN WORLD JOURNAL — immersive, calm, mobile-first */
 :root{--gold:#e9cf9a;--glass:rgba(8,22,29,.34);--glass2:rgba(8,22,29,.48);--softline:rgba(255,255,255,.16)}
 html{min-height:100%;background:#172a30}
-body{min-height:100vh;background:transparent!important;color:#f7f4eb!important;font-family:Arial,sans-serif}
-#deanWorld{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;z-index:-1!important;display:block!important;pointer-events:none!important}
-.wrap{max-width:1040px!important;padding:clamp(14px,3vw,34px)!important;margin:0 auto!important;z-index:2!important}
+html{background:transparent!important}body{min-height:100vh;background:transparent!important;color:#f7f4eb!important;font-family:Arial,sans-serif;position:relative!important;isolation:isolate!important}
+#deanWorld{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;z-index:0!important;display:block!important;pointer-events:none!important}
+.wrap{max-width:1040px!important;padding:clamp(14px,3vw,34px)!important;margin:0 auto!important;z-index:2!important;background:transparent!important}
 .hero{background:linear-gradient(115deg,rgba(7,22,29,.56),rgba(7,22,29,.12))!important;border:1px solid var(--softline)!important;border-radius:28px!important;padding:clamp(19px,4vw,34px)!important;box-shadow:0 18px 60px #07151b45!important;backdrop-filter:blur(10px)!important}
 .hero:after{content:none!important}
 .brand{letter-spacing:.4px!important}.logo{background:rgba(233,207,154,.2)!important;border:1px solid #e9cf9a88!important;color:var(--gold)!important;border-radius:50%!important}
@@ -171,8 +171,8 @@ body{background:transparent!important;isolation:isolate!important}
  #overview{grid-template-columns:minmax(0,1.7fr) minmax(300px,.8fr)!important}
 }
 @media(max-width:900px){
- #deanWorld{opacity:.55!important}
- .wrap{background:linear-gradient(180deg,rgba(7,18,27,.78),rgba(7,18,27,.66))!important}
+ #deanWorld{opacity:1!important}
+ .wrap{background:transparent!important}
 }
 
 </style><iframe id="deanWorld" title="DEAN 3D world" src="/life-preview" aria-hidden="true" onload="try{this.contentDocument.querySelector('.hud').style.display='none';this.contentDocument.querySelector('.status')?.remove()}catch(e){}"></iframe><main class="wrap"><header class="hero"><div class="row"><span class="brand"><span class="logo">✦</span><span>בניאל · יומן החיים שלי</span></span><div class="world-meta"><strong id="worldClock">--:--</strong><span id="worldDate"></span></div></div><h1>הדרך שלי, בקצב שלי</h1><div class="muted" id="today"></div><p class="muted">מסתכלים על התמונה הגדולה, מסמנים התקדמות ובונים את הדרך שלך בקצב שלך.</p><div class="stats"><div class="stat"><b id="goalCount">0</b><span class="muted">מטרות פעילות</span></div><div class="stat"><b id="avg">0%</b><span class="muted">התקדמות ממוצעת</span></div><div class="stat"><b id="checks">0</b><span class="muted">דיווחים החודש</span></div><div class="stat"><b id="wins">0</b><span class="muted">מטרות שהושלמו</span></div></div><div class="weather-dock" id="liveWeather" aria-live="polite"><span class="weather-symbol">🌤️</span><span><b id="weatherTemp">--°</b><small id="weatherCondition">מתחבר למזג האוויר…</small></span><span class="weather-extra" id="weatherDetails">מיקום · לחות · רוח</span><span class="weather-updated" id="weatherUpdated">עדכון אוטומטי</span></div></header>
