@@ -77,7 +77,7 @@ const codes=weatherCode;let icon=codes>=95?'⛈️':precip>0?'🌧️':cloudCove
 function clock(){const n=new Date();document.getElementById('clock').textContent=n.toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'});document.getElementById('date').textContent=n.toLocaleDateString('he-IL',{weekday:'long',day:'numeric',month:'long'});applySky()}
 document.getElementById('locate').onclick=()=>{placeName='המיקום שלך';loadWeather(true)};document.getElementById('return').onclick=()=>{camera.position.set(0,5.1,14.5);camera.lookAt(0,2.2,-2)};
 let tick=0;function animate(){requestAnimationFrame(animate);tick+=.008;clouds.forEach((c,i)=>c.position.x+=Math.sin(tick+i)*.0015);rain.children.forEach((d,i)=>{if(rain.visible){d.position.y-=.22;if(d.position.y<-.2){d.position.y=15;d.position.x=(Math.random()-.5)*38}}});person.rotation.y=-.18+Math.sin(tick*.3)*.025;renderer.render(scene,camera)}
-addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});clock();loadWeather(false);setInterval(clock,15000);setInterval(()=>loadWeather(false),15*60*1000);animate();setTimeout(()=>{status.style.opacity='0';setTimeout(()=>status.remove(),700)},1400);
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});clock();loadWeather(true);setInterval(clock,15000);setInterval(()=>loadWeather(false),15*60*1000);animate();setTimeout(()=>{status.style.opacity='0';setTimeout(()=>status.remove(),700)},1400);
 })();
 </script>
 </body></html>"""
