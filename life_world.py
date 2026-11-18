@@ -1,11 +1,11 @@
-"""DEAN cinematic 3D nature world preview."""
+"""Beniyaal cinematic 3D nature world preview."""
 from flask import render_template_string
 
 WORLD_PAGE = r"""<!doctype html>
 <html lang="he" dir="rtl">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>DEAN · העולם שלי</title>
+<title>בניאל · העולם שלי</title>
 <style>
 *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#9bb8c0;font-family:Arial,sans-serif;color:#fff}
 #scene{position:fixed;inset:0}canvas{display:block;width:100%;height:100%}
@@ -23,7 +23,7 @@ WORLD_PAGE = r"""<!doctype html>
 <div id="scene"></div>
 <div class="hud">
  <div class="top">
-  <div><div class="brand">D E A N</div><div class="clock" id="clock">--:--</div><div class="date" id="date"></div></div>
+  <div><div class="brand">בניאל</div><div class="clock" id="clock">--:--</div><div class="date" id="date"></div></div>
   <div class="glass weather"><div id="weatherIcon">🌤️</div><div id="weatherText">טוען מזג אוויר…</div><div id="place">מזהה מיקום</div></div>
  </div>
  <div class="bottom">
