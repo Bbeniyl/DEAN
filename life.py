@@ -424,6 +424,33 @@ input::placeholder,textarea::placeholder{color:rgba(255,255,255,.62)!important}
 .brand{color:#f5e8c8!important}
 @media(max-width:900px){.wrap{padding:78px 14px 20px!important}.hero{background:rgba(5,18,24,.16)!important}#goals,#daily,#history{min-height:calc(100dvh - 80px)!important}}
 
+
+/* BENIYAAL FINAL FIX — show the 3D world as the actual full-screen background */
+html,body{background:transparent!important;background-color:transparent!important;color:#f5f1e7!important}
+body{background-image:none!important;isolation:isolate!important;overflow-x:hidden!important}
+#deanWorld{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;height:100dvh!important;min-height:100dvh!important;opacity:1!important;filter:none!important;z-index:0!important;display:block!important;visibility:visible!important;pointer-events:none!important;border:0!important}
+.wrap{position:relative!important;z-index:2!important;min-height:100vh!important;background:transparent!important;background-color:transparent!important;background-image:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+.tabs{z-index:40!important;background:rgba(7,20,27,.48)!important;background-image:none!important;border-color:rgba(255,255,255,.2)!important;box-shadow:0 8px 30px rgba(0,0,0,.18)!important;backdrop-filter:blur(10px)!important;-webkit-backdrop-filter:blur(10px)!important}
+.tabs:before{content:"בניאל"!important;color:#f4dfb4!important;font-family:Arial,sans-serif!important;font-size:23px!important;letter-spacing:1px!important}
+.tabs:after{content:"יומן החיים שלי"!important;color:rgba(245,241,231,.72)!important}
+.hero,.card,#overview>.card,.area,.stat,.goal,.empty,.weather-dock,#goals,#daily,#history{
+ background:rgba(7,22,29,.24)!important;background-color:rgba(7,22,29,.24)!important;background-image:none!important;
+ color:#f7f2e7!important;border-color:rgba(255,255,255,.19)!important;
+ box-shadow:0 8px 28px rgba(0,0,0,.12)!important;backdrop-filter:blur(5px)!important;-webkit-backdrop-filter:blur(5px)!important
+}
+.hero{background:linear-gradient(110deg,rgba(7,22,29,.42),rgba(7,22,29,.13))!important}
+.hero h1,.hero .brand,.hero .world-meta strong,.hero .world-meta span,.hero>p,.hero #today,
+.card h2,.goal b,.area strong,.stat b,label,.muted,.note,.chart-labels{color:#f5f0e5!important}
+.area{border-bottom:1px solid rgba(255,255,255,.16)!important}
+.area>span:first-child{background:rgba(255,255,255,.12)!important}
+input,textarea,select{background:rgba(5,18,25,.52)!important;background-color:rgba(5,18,25,.52)!important;color:#fff!important;border:1px solid rgba(255,255,255,.25)!important}
+input::placeholder,textarea::placeholder{color:rgba(255,255,255,.65)!important}
+button,.actions button,.card .row button{background:rgba(7,22,29,.48)!important;color:#f8f1e3!important;border:1px solid rgba(255,255,255,.24)!important;box-shadow:none!important}
+button.primary,.primary,.tabs button.active{background:rgba(207,174,112,.92)!important;color:#17262a!important;border-color:rgba(255,236,194,.55)!important}
+.bar{background:rgba(255,255,255,.24)!important}
+.empty{border:1px dashed rgba(255,255,255,.3)!important}
+@media(max-width:900px){#deanWorld{opacity:1!important}.wrap{background:transparent!important;padding-top:88px!important}.tabs{background:rgba(7,20,27,.62)!important}}
+
 </style><iframe id="deanWorld" title="העולם של בניאל" src="/life-preview" loading="eager" aria-hidden="true" onload="try{this.contentDocument.querySelector('.hud').style.display='none';this.contentDocument.querySelector('.status')?.remove()}catch(e){}"></iframe><main class="wrap"><header class="hero"><div class="row"><span class="brand"><span class="logo">✦</span><span>בניאל · יומן החיים שלי</span></span><div class="world-meta"><strong id="worldClock">--:--</strong><span id="worldDate"></span></div></div><h1>הדרך שלי, בקצב שלי</h1><div class="muted" id="today"></div><p class="muted">מסתכלים על התמונה הגדולה, מסמנים התקדמות ובונים את הדרך שלך בקצב שלך.</p><div class="stats"><div class="stat"><b id="goalCount">0</b><span class="muted">מטרות פעילות</span></div><div class="stat"><b id="avg">0%</b><span class="muted">התקדמות ממוצעת</span></div><div class="stat"><b id="checks">0</b><span class="muted">דיווחים החודש</span></div><div class="stat"><b id="wins">0</b><span class="muted">מטרות שהושלמו</span></div></div><div class="weather-dock" id="liveWeather" aria-live="polite"><span class="weather-symbol">🌤️</span><span><b id="weatherTemp">--°</b><small id="weatherCondition">מתחבר למזג האוויר…</small></span><span class="weather-extra" id="weatherDetails">מיקום · לחות · רוח</span><span class="weather-updated" id="weatherUpdated">עדכון אוטומטי</span></div></header>
 <nav class="tabs"><button class="active" data-tab="overview">תמונה כללית</button><button data-tab="goals">מטרות ומדדים</button><button data-tab="daily">דיווח יומי</button><button data-tab="history">היסטוריה</button></nav>
 <section id="overview"><div class="card"><div class="row"><h2>תחומי החיים</h2><button id="addArea">＋ תחום חדש</button></div><div class="grid" id="areas"></div></div><div class="card"><h2>דורש תשומת לב</h2><div id="attention"></div></div><div class="card"><h2>מגמת ההתקדמות</h2><div id="overviewTrend"></div></div></section>
