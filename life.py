@@ -175,6 +175,91 @@ body{background:transparent!important;isolation:isolate!important}
  .wrap{background:transparent!important}
 }
 
+/* DEAN 2026 — real nature dashboard, based on the selected A/B desktop concepts */
+:root{--forest:#173b30;--forest2:#214d3c;--leaf:#6c9569;--gold:#c79b4b;--cream:#f4f0e5;--paper:#fffdf7;--ink:#20352c;--muted:#718078;--line:#e6e0d1}
+html,body{background:var(--cream)!important;color:var(--ink)!important;font-family:Arial,sans-serif}
+body{min-height:100vh;overflow-x:hidden}
+#deanWorld{position:fixed!important;inset:auto!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important;z-index:-10!important}
+.wrap{width:auto!important;max-width:none!important;min-height:100vh;margin:0 250px 0 0!important;padding:28px 34px 60px!important;background:var(--cream)!important;backdrop-filter:none!important;z-index:1!important}
+.tabs{position:fixed!important;right:0!important;top:0!important;bottom:0!important;width:226px!important;height:auto!important;min-height:100vh!important;z-index:50!important;display:flex!important;flex-direction:column!important;align-items:stretch!important;justify-content:flex-start!important;gap:8px!important;padding:30px 17px!important;margin:0!important;overflow:visible!important;background:linear-gradient(180deg,#163b30,#102c25)!important;border:0!important;border-left:1px solid #ffffff18!important;border-radius:0!important;box-shadow:-12px 0 36px #102c251c!important}
+.tabs:before{content:"♛  DEAN"!important;color:#f2e3bd!important;font-family:Georgia,serif!important;font-size:29px!important;font-weight:700!important;letter-spacing:3px!important;padding:10px 13px 2px!important}
+.tabs:after{content:"יומן החיים · PERSONAL DASHBOARD"!important;order:10!important;display:block!important;margin-top:auto!important;padding:17px 10px 5px!important;border-top:1px solid #ffffff25!important;color:#b9c9bc!important;font-size:10px!important;letter-spacing:.5px!important;line-height:1.8!important}
+.tabs button{width:100%!important;text-align:right!important;white-space:nowrap!important;padding:14px 15px!important;border:1px solid transparent!important;border-radius:12px!important;background:transparent!important;color:#e3e9df!important;box-shadow:none!important;font-size:14px!important}
+.tabs button:before{display:inline-block;width:28px;font-size:17px;vertical-align:middle}
+.tabs button:nth-child(1):before{content:"⌂"}.tabs button:nth-child(2):before{content:"◉"}.tabs button:nth-child(3):before{content:"✎"}.tabs button:nth-child(4):before{content:"▤"}
+.tabs button:hover{background:#ffffff12!important}
+.tabs button.active{background:linear-gradient(90deg,#d9bd83,#c7a86c)!important;color:#1b352b!important;border-color:#f2dfb5!important;box-shadow:0 5px 15px #071d162b!important}
+.hero{position:relative!important;isolation:isolate!important;display:grid!important;grid-template-columns:1fr auto!important;align-items:start!important;gap:14px 24px!important;min-height:365px!important;margin:0 0 22px!important;padding:28px 32px 22px!important;border-radius:23px!important;overflow:hidden!important;color:#fff!important;background:linear-gradient(90deg,rgba(13,39,31,.84),rgba(13,39,31,.26)),url('https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&w=2200&q=90') center 48%/cover!important;border:1px solid #ffffff75!important;box-shadow:0 16px 38px #243d2c25!important}
+.hero:before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(0deg,rgba(8,31,24,.72),transparent 62%)}
+.hero:after{content:"";position:absolute;z-index:-1;left:4%;bottom:-65px;width:210px;height:210px;border-radius:50%;border:1px solid #ffffff38;box-shadow:0 0 0 22px #ffffff0b,0 0 0 44px #ffffff08}
+.hero>.row{grid-column:1/-1!important;align-items:center!important;padding-bottom:12px!important;border-bottom:1px solid #ffffff48!important}
+.brand{color:white!important;font-size:17px!important;letter-spacing:.3px!important}
+.logo{width:48px!important;height:48px!important;border-radius:14px!important;background:linear-gradient(145deg,#f0d99e,#c69c52)!important;color:#19372c!important;font-size:24px!important;box-shadow:0 5px 20px #142c2555!important}
+.world-meta strong{color:#fff4d7!important;font-size:27px!important;text-shadow:0 2px 15px #10291e!important}
+.world-meta span{color:#f1eee4!important;font-size:12px!important}
+.hero h1{grid-column:1!important;align-self:end!important;color:#fff!important;font-family:Georgia,Arial,sans-serif!important;font-size:clamp(32px,4vw,49px)!important;line-height:1.12!important;letter-spacing:-.8px!important;margin:10px 0 0!important;text-shadow:0 3px 18px #14291f!important}
+.hero>p{grid-column:1!important;color:#f2f0e7!important;max-width:570px!important;font-size:15px!important;line-height:1.9!important;margin:0!important;text-shadow:0 2px 12px #10291e!important}
+.hero>#today{grid-column:1!important;color:#f4e5c4!important;font-size:13px!important}
+.stats{grid-column:1/-1!important;display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:10px!important;margin-top:8px!important;padding:0!important;border:0!important}
+.stat{min-width:0!important;padding:12px 16px!important;border:1px solid #ffffff4d!important;border-radius:14px!important;background:#f9f6e91f!important;backdrop-filter:blur(8px)!important}
+.stat b{color:#ffedc5!important;font-size:29px!important;font-weight:700!important;text-shadow:0 2px 10px #12291f!important}
+.stat .muted{color:#f5f0e4!important;font-size:12px!important}
+.weather-dock{grid-column:1/-1!important;max-width:100%!important;margin-top:2px!important;padding:10px 15px!important;border:1px solid #ffffff5c!important;border-radius:13px!important;background:rgba(16,48,38,.53)!important;backdrop-filter:blur(9px)!important;color:#fff!important}
+.weather-dock b{color:#ffedc5!important;font-size:22px!important}.weather-dock small,.weather-extra,.weather-updated{color:#f2eee1!important}
+#overview{display:grid!important;grid-template-columns:minmax(0,1.55fr) minmax(300px,.85fr)!important;gap:18px!important;align-items:start!important}
+#overview>.card{margin:0!important;min-width:0!important;background:var(--paper)!important;border:1px solid var(--line)!important;border-radius:18px!important;padding:22px 24px!important;box-shadow:0 7px 25px #334d3510!important;color:var(--ink)!important;backdrop-filter:none!important}
+#overview>.card:first-child{grid-row:span 2!important}
+.card{background:var(--paper)!important;border:1px solid var(--line)!important;border-radius:18px!important;padding:24px!important;margin-bottom:18px!important;box-shadow:0 7px 25px #334d3510!important;color:var(--ink)!important;backdrop-filter:none!important}
+.card h2{color:var(--forest)!important;font-size:19px!important;font-weight:700!important;margin:0 0 18px!important}
+.card .row button{background:var(--forest)!important;color:white!important}
+.grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px 18px!important;margin-top:15px!important}
+.area{display:grid!important;grid-template-columns:42px 1fr auto!important;grid-template-rows:auto auto!important;align-items:center!important;gap:4px 11px!important;min-height:76px!important;margin:0!important;padding:12px 8px!important;border:0!important;border-bottom:1px solid var(--line)!important;border-radius:0!important;background:transparent!important;color:var(--ink)!important;box-shadow:none!important}
+.area>span:first-child{grid-row:1/3!important;width:39px!important;height:39px!important;display:grid!important;place-items:center!important;border-radius:13px!important;background:#e9eee2!important;font-size:20px!important}
+.area strong{margin:0!important;color:var(--forest)!important;font-size:14px!important}
+.area .muted{color:var(--muted)!important;font-size:11px!important}
+.area .bar{grid-column:2/-1!important;margin:5px 0 0!important;height:5px!important;background:#e8e9df!important}
+.bar i{background:linear-gradient(90deg,#6b9a69,#d0aa5d)!important}
+.goal{border-color:var(--line)!important;color:var(--ink)!important;padding:15px 0!important}
+.goal b{color:var(--forest)!important}.goal .muted{color:var(--muted)!important}
+label{color:var(--forest)!important;font-weight:600!important}
+input,textarea,select{background:#fff!important;color:var(--ink)!important;border:1px solid #dcded3!important;border-radius:10px!important}
+input::placeholder,textarea::placeholder{color:#929c91!important}
+button{border-radius:10px!important}
+.primary,.actions button{background:var(--forest)!important;color:#fff!important;border:0!important}
+.empty{background:#f1f3eb!important;color:#718078!important;border:1px dashed #d4ddcf!important}
+.note{color:#829084!important}
+.chart polyline{stroke:#4d8a60!important}
+.chart circle{fill:#c89e51!important}
+@media(max-width:1050px){.wrap{margin-right:215px!important;padding:20px!important}.tabs{width:195px!important}.hero{min-height:350px!important}}
+@media(max-width:900px){
+ .wrap{margin:0!important;padding:88px 14px 28px!important}
+ .tabs{position:fixed!important;right:0!important;left:0!important;top:0!important;bottom:auto!important;width:100%!important;height:68px!important;min-height:68px!important;padding:8px 10px!important;flex-direction:row!important;align-items:center!important;gap:5px!important;overflow-x:auto!important;border:0!important;border-bottom:1px solid #d8d1bf!important;box-shadow:0 4px 16px #102c2518!important}
+ .tabs:before{font-size:15px!important;letter-spacing:1px!important;padding:0 5px!important;white-space:nowrap!important}
+ .tabs:after{display:none!important}
+ .tabs button{width:auto!important;flex:1 0 auto!important;padding:10px 9px!important;font-size:12px!important}
+ .tabs button:before{width:20px!important;font-size:14px!important}
+ .hero{min-height:390px!important;padding:19px!important;border-radius:18px!important;grid-template-columns:1fr auto!important}
+ .hero h1{font-size:31px!important}
+ .stats{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+ .stat{padding:9px!important}
+ #overview{grid-template-columns:1fr!important}
+ #overview>.card:first-child{grid-row:auto!important}
+ .grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+}
+@media(max-width:560px){
+ .wrap{padding:82px 11px 24px!important}
+ .hero{min-height:410px!important;padding:16px!important;gap:10px!important}
+ .hero>.row{gap:8px!important}.hero h1{font-size:27px!important}
+ .hero>p{font-size:13px!important}
+ .stats{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:7px!important}
+ .stat b{font-size:24px!important}
+ .weather-dock{gap:7px!important;flex-wrap:wrap!important}
+ .grid{grid-template-columns:1fr!important}
+ .card,#overview>.card{padding:16px!important}
+ .tabs:before{display:none!important}
+}
+
+
 </style><iframe id="deanWorld" title="DEAN 3D world" src="/life-preview" loading="eager" aria-hidden="true" onload="try{this.contentDocument.querySelector('.hud').style.display='none';this.contentDocument.querySelector('.status')?.remove()}catch(e){}"></iframe><main class="wrap"><header class="hero"><div class="row"><span class="brand"><span class="logo">✦</span><span>בניאל · יומן החיים שלי</span></span><div class="world-meta"><strong id="worldClock">--:--</strong><span id="worldDate"></span></div></div><h1>הדרך שלי, בקצב שלי</h1><div class="muted" id="today"></div><p class="muted">מסתכלים על התמונה הגדולה, מסמנים התקדמות ובונים את הדרך שלך בקצב שלך.</p><div class="stats"><div class="stat"><b id="goalCount">0</b><span class="muted">מטרות פעילות</span></div><div class="stat"><b id="avg">0%</b><span class="muted">התקדמות ממוצעת</span></div><div class="stat"><b id="checks">0</b><span class="muted">דיווחים החודש</span></div><div class="stat"><b id="wins">0</b><span class="muted">מטרות שהושלמו</span></div></div><div class="weather-dock" id="liveWeather" aria-live="polite"><span class="weather-symbol">🌤️</span><span><b id="weatherTemp">--°</b><small id="weatherCondition">מתחבר למזג האוויר…</small></span><span class="weather-extra" id="weatherDetails">מיקום · לחות · רוח</span><span class="weather-updated" id="weatherUpdated">עדכון אוטומטי</span></div></header>
 <nav class="tabs"><button class="active" data-tab="overview">תמונה כללית</button><button data-tab="goals">מטרות ומדדים</button><button data-tab="daily">דיווח יומי</button><button data-tab="history">היסטוריה</button></nav>
 <section id="overview"><div class="card"><div class="row"><h2>תחומי החיים</h2><button id="addArea">＋ תחום חדש</button></div><div class="grid" id="areas"></div></div><div class="card"><h2>דורש תשומת לב</h2><div id="attention"></div></div></section>
