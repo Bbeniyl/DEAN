@@ -32,7 +32,21 @@ WORLD_PAGE = r"""<!doctype html>
  </div>
 </div>
 <div class="status" id="status">בונה את העולם שלך…</div>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js" onerror="this.onerror=null;this.src='https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'"></script>
+<script>
+/* Independent weather bridge: the journal receives weather even if the 3D library is blocked. */
+(async()=>{const send=(payload)=>{try{parent.postMessage(payload,location.origin)}catch(e){}};
+try{
+ let lat=31.25,lon=34.78,place='אופקים';
+ if(navigator.geolocation){try{const p=await new Promise((ok,no)=>navigator.geolocation.getCurrentPosition(ok,no,{timeout:3500,maximumAge:600000}));lat=p.coords.latitude;lon=p.coords.longitude;place='המיקום שלך'}catch(e){}}
+ const u='https://api.open-meteo.com/v1/forecast?latitude='+lat+'&longitude='+lon+'&current=temperature_2m,relative_humidity_2m,precipitation,weather_code,cloud_cover,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset&timezone=auto&forecast_days=1';
+ const r=await fetch(u);if(!r.ok)throw Error('weather');const d=await r.json(),c=d.current.weather_code;
+ const m={0:['☀️','בהיר'],1:['🌤️','בהיר בדרך כלל'],2:['⛅','מעונן חלקית'],3:['☁️','מעונן'],45:['🌫️','ערפל'],48:['🌫️','ערפל כבד'],51:['🌦️','טפטוף קל'],53:['🌦️','טפטוף'],55:['🌧️','טפטוף חזק'],61:['🌧️','גשם קל'],63:['🌧️','גשם'],65:['🌧️','גשם חזק'],80:['🌦️','ממטרים קלים'],81:['🌧️','ממטרים'],82:['⛈️','ממטרים חזקים'],95:['⛈️','סופת רעמים'],96:['⛈️','רעמים וברד'],99:['⛈️','סופת רעמים חזקה']};
+ const v=m[c]||['🌤️','מזג אוויר משתנה'],fmt=x=>x?x.slice(11,16):'--:--';
+ send({type:'DEAN_WEATHER',payload:{icon:v[0],condition:v[1],temp:Math.round(d.current.temperature_2m),wind:Math.round(d.current.wind_speed_10m),humidity:d.current.relative_humidity_2m,high:Math.round(d.daily.temperature_2m_max[0]),low:Math.round(d.daily.temperature_2m_min[0]),place,sunrise:fmt(d.daily.sunrise[0]),sunset:fmt(d.daily.sunset[0]),updated:new Date().toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'})}});
+}catch(e){send({type:'DEAN_WEATHER_ERROR'})}
+})();
+</script>
 <script>
 (()=> {
 const host=document.getElementById('scene'),status=document.getElementById('status');
