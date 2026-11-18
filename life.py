@@ -146,6 +146,35 @@ button{border-radius:9px!important}
  .tabs:before{display:none!important}
 }
 
+
+/* DEAN — final visual pass based on the two selected left-side concepts */
+html{background:#07131b!important}
+body{background:transparent!important;isolation:isolate!important}
+#deanWorld{z-index:0!important;opacity:.78!important;filter:saturate(1.12) brightness(.9) contrast(1.04)!important}
+.wrap{position:relative!important;z-index:2!important;background:linear-gradient(115deg,rgba(7,18,27,.70),rgba(7,18,27,.48))!important;backdrop-filter:blur(1px)}
+.tabs{z-index:30!important;background:linear-gradient(180deg,rgba(7,19,28,.96),rgba(9,27,35,.94))!important;border-left:1px solid rgba(224,194,130,.28)!important}
+.tabs:before{color:#f4dfb4!important;letter-spacing:5px!important}
+.hero{background:linear-gradient(115deg,rgba(9,28,39,.78),rgba(19,39,45,.58))!important;border:1px solid rgba(230,203,151,.34)!important;box-shadow:0 22px 65px rgba(0,0,0,.28),inset 0 1px rgba(255,255,255,.10)!important}
+.hero>.row{border-bottom-color:rgba(230,203,151,.25)!important}
+.card{background:linear-gradient(145deg,rgba(10,27,37,.88),rgba(15,34,42,.76))!important;border-color:rgba(231,204,153,.20)!important;box-shadow:0 18px 48px rgba(0,0,0,.22),inset 0 1px rgba(255,255,255,.045)!important}
+.stat b{color:#f4d99e!important;text-shadow:0 2px 15px rgba(217,189,131,.18)}
+.stat{border-left-color:rgba(230,203,151,.22)!important}
+.weather-dock{background:linear-gradient(105deg,rgba(217,189,131,.17),rgba(10,28,37,.52))!important;border-color:rgba(235,207,155,.34)!important;box-shadow:inset 0 1px rgba(255,255,255,.08)!important}
+.weather-dock b{font-size:25px!important;color:#ffe4ae!important}
+.weather-symbol{filter:drop-shadow(0 2px 9px rgba(255,220,150,.35))}
+.area{border-bottom-color:rgba(230,203,151,.16)!important}
+.area:hover{background:rgba(230,203,151,.07)!important}
+.primary{background:linear-gradient(135deg,#f0d59b,#c49b59)!important;color:#17262d!important}
+@media(min-width:901px){
+ .wrap{margin-right:236px!important;padding:30px clamp(28px,3vw,54px) 54px!important}
+ .hero{min-height:250px!important}
+ #overview{grid-template-columns:minmax(0,1.7fr) minmax(300px,.8fr)!important}
+}
+@media(max-width:900px){
+ #deanWorld{opacity:.55!important}
+ .wrap{background:linear-gradient(180deg,rgba(7,18,27,.78),rgba(7,18,27,.66))!important}
+}
+
 </style><iframe id="deanWorld" title="DEAN 3D world" src="/life-preview" aria-hidden="true" onload="try{this.contentDocument.querySelector('.hud').style.display='none';this.contentDocument.querySelector('.status')?.remove()}catch(e){}"></iframe><main class="wrap"><header class="hero"><div class="row"><span class="brand"><span class="logo">✦</span><span>בניאל · יומן החיים שלי</span></span><div class="world-meta"><strong id="worldClock">--:--</strong><span id="worldDate"></span></div></div><h1>הדרך שלי, בקצב שלי</h1><div class="muted" id="today"></div><p class="muted">מסתכלים על התמונה הגדולה, מסמנים התקדמות ובונים את הדרך שלך בקצב שלך.</p><div class="stats"><div class="stat"><b id="goalCount">0</b><span class="muted">מטרות פעילות</span></div><div class="stat"><b id="avg">0%</b><span class="muted">התקדמות ממוצעת</span></div><div class="stat"><b id="checks">0</b><span class="muted">דיווחים החודש</span></div><div class="stat"><b id="wins">0</b><span class="muted">מטרות שהושלמו</span></div></div><div class="weather-dock" id="liveWeather" aria-live="polite"><span class="weather-symbol">🌤️</span><span><b id="weatherTemp">--°</b><small id="weatherCondition">מתחבר למזג האוויר…</small></span><span class="weather-extra" id="weatherDetails">מיקום · לחות · רוח</span><span class="weather-updated" id="weatherUpdated">עדכון אוטומטי</span></div></header>
 <nav class="tabs"><button class="active" data-tab="overview">תמונה כללית</button><button data-tab="goals">מטרות ומדדים</button><button data-tab="daily">דיווח יומי</button><button data-tab="history">היסטוריה</button></nav>
 <section id="overview"><div class="card"><div class="row"><h2>תחומי החיים</h2><button id="addArea">＋ תחום חדש</button></div><div class="grid" id="areas"></div></div><div class="card"><h2>דורש תשומת לב</h2><div id="attention"></div></div></section>
