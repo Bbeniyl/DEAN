@@ -361,6 +361,44 @@ body{position:relative!important;isolation:isolate!important}
 }
 
 
+
+/* DEAN — transparent glass surfaces: keep the landscape visible */
+html,body{background:transparent!important}
+.hero,.card,.area,.stat,.goal,.empty,
+#overview,#goals,#daily,#history,
+#goals .card,#daily .card,#history .card{
+  background:rgba(7,20,25,.16)!important;
+  background-image:none!important;
+  color:#f4f1e8!important;
+  border-color:rgba(255,255,255,.16)!important;
+  box-shadow:none!important;
+  backdrop-filter:blur(5px)!important;
+  -webkit-backdrop-filter:blur(5px)!important;
+}
+#goals,#daily,#history{
+  background:rgba(7,20,25,.12)!important;
+  color:#f4f1e8!important;
+}
+#goals .card,#daily .card,#history .card{
+  background:rgba(7,20,25,.12)!important;
+  border-bottom-color:rgba(255,255,255,.15)!important;
+}
+.card h2,.goal b,.area strong,label,
+#goals .card h2,#daily .card h2,#history .card h2{
+  color:#f3ead7!important;
+}
+.area>span:first-child{background:rgba(255,255,255,.09)!important}
+input,textarea,select,
+#goals input,#daily input,#daily textarea{
+  background:rgba(7,20,25,.28)!important;
+  color:#fff!important;
+  border:1px solid rgba(255,255,255,.2)!important;
+  box-shadow:none!important;
+}
+input::placeholder,textarea::placeholder{color:rgba(255,255,255,.58)!important}
+.empty{background:rgba(7,20,25,.12)!important;color:#eee8db!important}
+.tabs{background:rgba(7,20,25,.18)!important;backdrop-filter:blur(8px)!important;-webkit-backdrop-filter:blur(8px)!important}
+
 </style><iframe id="deanWorld" title="DEAN 3D world" src="/life-preview" loading="eager" aria-hidden="true" onload="try{this.contentDocument.querySelector('.hud').style.display='none';this.contentDocument.querySelector('.status')?.remove()}catch(e){}"></iframe><main class="wrap"><header class="hero"><div class="row"><span class="brand"><span class="logo">✦</span><span>בניאל · יומן החיים שלי</span></span><div class="world-meta"><strong id="worldClock">--:--</strong><span id="worldDate"></span></div></div><h1>הדרך שלי, בקצב שלי</h1><div class="muted" id="today"></div><p class="muted">מסתכלים על התמונה הגדולה, מסמנים התקדמות ובונים את הדרך שלך בקצב שלך.</p><div class="stats"><div class="stat"><b id="goalCount">0</b><span class="muted">מטרות פעילות</span></div><div class="stat"><b id="avg">0%</b><span class="muted">התקדמות ממוצעת</span></div><div class="stat"><b id="checks">0</b><span class="muted">דיווחים החודש</span></div><div class="stat"><b id="wins">0</b><span class="muted">מטרות שהושלמו</span></div></div><div class="weather-dock" id="liveWeather" aria-live="polite"><span class="weather-symbol">🌤️</span><span><b id="weatherTemp">--°</b><small id="weatherCondition">מתחבר למזג האוויר…</small></span><span class="weather-extra" id="weatherDetails">מיקום · לחות · רוח</span><span class="weather-updated" id="weatherUpdated">עדכון אוטומטי</span></div></header>
 <nav class="tabs"><button class="active" data-tab="overview">תמונה כללית</button><button data-tab="goals">מטרות ומדדים</button><button data-tab="daily">דיווח יומי</button><button data-tab="history">היסטוריה</button></nav>
 <section id="overview"><div class="card"><div class="row"><h2>תחומי החיים</h2><button id="addArea">＋ תחום חדש</button></div><div class="grid" id="areas"></div></div><div class="card"><h2>דורש תשומת לב</h2><div id="attention"></div></div><div class="card"><h2>מגמת ההתקדמות</h2><div id="overviewTrend"></div></div></section>
