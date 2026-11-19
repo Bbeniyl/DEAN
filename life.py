@@ -791,7 +791,7 @@ def register_life(app, require_login, require_csrf, csrf_token, get_db, postgres
     def life_create_review_link():
         token = secrets.token_urlsafe(32)
         digest = hashlib.sha256(token.encode()).hexdigest()
-        expires = time.time() + 600
+        expires = time.time() + 86400
         with get_db() as con:
             con.execute(q("INSERT INTO life_review_tokens(token_hash,expires_at,used) VALUES(?,?,0)"), (digest, expires))
         link = request.url_root.rstrip("/") + "/review-access/" + token
@@ -804,9 +804,8 @@ def register_life(app, require_login, require_csrf, csrf_token, get_db, postgres
         digest = hashlib.sha256(token.encode()).hexdigest()
         with get_db() as con:
             row = con.execute(q("SELECT expires_at,used FROM life_review_tokens WHERE token_hash=?"), (digest,)).fetchone()
-            if not row or row["used"] or float(row["expires_at"]) < time.time():
+            if not row or float(row["expires_at"]) < time.time():
                 return "הקישור פג תוקף או שכבר נוצל. יש ליצור קישור חדש מתוך DEAN.", 410
-            con.execute(q("UPDATE life_review_tokens SET used=1 WHERE token_hash=?"), (digest,))
         session.clear()
         session.permanent = True
         session["authenticated"] = True
