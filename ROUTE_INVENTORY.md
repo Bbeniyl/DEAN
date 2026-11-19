@@ -43,19 +43,32 @@ Some browser and chat routes are protected by login/CSRF decorators. Verify each
 | GET | `/life` | Life journal UI |
 | GET | `/api/life/dashboard` | Dashboard data |
 | POST | `/api/life/tasks` | Add task |
-| PUT/PATCH | `/api/life/tasks/<id>` | Update task (verify actual decorator/method) |
+| PATCH | `/api/life/tasks/<id>` | Update task |
 | DELETE | `/api/life/tasks/<id>` | Delete task |
 | POST | `/api/life/reminders` | Add reminder |
 | PATCH | `/api/life/reminders/<id>` | Update reminder |
+| PATCH | `/api/life/reminders/<id>` | Update reminder |
 | POST | `/api/life/areas` | Add life area |
 | POST | `/api/life/goals` | Add goal |
-| PUT/PATCH | `/api/life/goals/<id>` | Update goal (verify actual decorator/method) |
+| PATCH | `/api/life/goals/<id>` | Update goal |
 | DELETE | `/api/life/goals/<id>` | Delete goal |
 | POST | `/api/life/checkins` | Add progress check-in |
 | POST | `/api/life/summary` | Add summary |
 | GET | `/share-review` | Review-link page |
 | POST | `/share-review` | Create review link |
 | GET | `/review-access/<token>` | Consume review access token |
+| GET | `/life-preview` | 3D/world preview |
+
+## Market blueprint routes
+
+The market module uses a Flask Blueprint and registers these routes:
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/market` | Market UI |
+| GET | `/api/market` | Market data |
+| POST | `/api/market/view` | Record/acknowledge a market view |
+| GET | `/api/market/shared-state` | Shared market monitor state |
 
 ## SQLite/PostgreSQL tables found in source
 
@@ -75,6 +88,9 @@ From `life.py`:
 - `life_checkins`
 - `life_summaries`
 - `life_review_tokens`
+
+From `market.py`:
+- `market_monitor_views`
 
 The exact columns, foreign-key behavior, and migration compatibility must be validated from the complete DDL before building import/export. Do not infer a schema from this list alone.
 
