@@ -22,7 +22,7 @@ from persistent_browser import ensure_started as ensure_persistent_browser, stat
 app = Flask(__name__)
 # browser reconnect build marker
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
+OPENAI_API_KEY = (os.getenv("DEAN_OPENAI_API_KEY", "").strip() or os.getenv("OPENAI_API_KEY", "").strip())
 DEAN_PASSWORD = os.getenv("DEAN_PASSWORD", "").strip()
 SECRET_KEY = os.getenv("SECRET_KEY", "").strip()
 MODEL = os.getenv("OPENAI_MODEL", "gpt-5.6-sol").strip()
@@ -42,7 +42,7 @@ REALTIME_MODEL = os.getenv("REALTIME_MODEL", "gpt-realtime-2.1").strip()
 REALTIME_VOICE = os.getenv("REALTIME_VOICE", "cedar").strip()
 
 if not OPENAI_API_KEY:
-    raise RuntimeError("OPENAI_API_KEY is missing")
+    raise RuntimeError("DEAN_OPENAI_API_KEY (or OPENAI_API_KEY) is missing")
 if len(DEAN_PASSWORD) < 12:
     raise RuntimeError("DEAN_PASSWORD must contain at least 12 characters")
 if len(SECRET_KEY) < 32:
