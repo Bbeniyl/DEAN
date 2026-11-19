@@ -107,3 +107,12 @@ Only after verified backup, successful acceptance tests, and explicit user appro
 - The actual live environment variable values are intentionally not read or exposed.
 - Current public repository history has not yet completed a secrets scan.
 - Exact route/table inventory and current frontend/backend coupling still need to be completed.
+
+## Additional findings from full source inventory
+- Additional root files include `steel_client.py`, `test_market.py`, `templates/market.html`, and `MARKET.md`. These are part of the project and must be included in preservation/testing.
+- `life_world.py` registers `/life-preview`; it also loads Three.js from public CDNs and obtains weather from Open-Meteo. These are external runtime dependencies, not bundled offline assets.
+- `market.py` creates a `market_monitor_views` table and exposes a market feature; it must be included in the data migration and route map.
+- `life.py` contains the BenFit UI. Its exercise/workout records are stored in browser localStorage under `dean_benfit_exercises` and `dean_benfit_workouts`, not in the server DB.
+- The source writes/reads an `oauth_tokens` table for TikTok, but the initial table-creation scan of `app.py` did not find a corresponding `CREATE TABLE oauth_tokens`. This is a potential latent defect to reproduce in a test and fix in the migration branch before enabling OAuth.
+- Current-blob pattern scan across the main Python modules and supporting HTML/Python files found no obvious hard-coded OpenAI, Google, GitHub-token, or private-key strings. This is only a quick scan of the current file contents, not the Git history or every branch; it is not a clean bill of health.
+- The source already includes a `test_market.py` test suite. Reuse it and add tests for all DEAN core flows rather than discarding it.
