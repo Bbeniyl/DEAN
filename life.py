@@ -813,9 +813,3 @@ def register_life(app, require_login, require_csrf, csrf_token, get_db, postgres
         session["review_only"] = True
         return redirect("/life")
 
-
-/* DEAN PHOTO BACKGROUND RESTORE — keep the approved sunset image visible */
-#deanWorld{display:none!important}
-html,body{background:transparent!important;background-color:transparent!important}
-body::before{z-index:0!important;opacity:1!important;background-size:cover!important;background-position:center center!important}
-.wrap{position:relative!important;z-index:2!important;background:transparent!important}
