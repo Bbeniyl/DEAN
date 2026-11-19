@@ -46,6 +46,7 @@ Some browser and chat routes are protected by login/CSRF decorators. Verify each
 | PUT/PATCH | `/api/life/tasks/<id>` | Update task (verify actual decorator/method) |
 | DELETE | `/api/life/tasks/<id>` | Delete task |
 | POST | `/api/life/reminders` | Add reminder |
+| PATCH | `/api/life/reminders/<id>` | Update reminder |
 | POST | `/api/life/areas` | Add life area |
 | POST | `/api/life/goals` | Add goal |
 | PUT/PATCH | `/api/life/goals/<id>` | Update goal (verify actual decorator/method) |
