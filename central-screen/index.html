@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111827"><title>המסך המרכזי</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1020;--panel:#151d31;--line:#29344d;--muted:#aab5ca;--accent:#74a7ff;--green:#53d6a0}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:#f5f7fb;font-family:-apple-system,BlinkMacSystemFont,"Arial",sans-serif;padding:env(safe-area-inset-top) 14px env(safe-area-inset-bottom);max-width:850px;margin:auto}
+header{padding:22px 4px 14px;display:flex;justify-content:space-between;align-items:center;gap:12px}h1{font-size:25px;margin:0}h2{font-size:18px;margin:0 0 12px}.muted,.hint{color:var(--muted);font-size:13px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:15px;margin:10px 0}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.tile{background:#1b2740;border:1px solid var(--line);border-radius:14px;padding:14px;min-height:88px}.tile b{display:block;margin-bottom:6px}.tile span{font-size:12px;color:var(--muted)}button,.btn{background:#263a60;color:white;border:1px solid #40577f;border-radius:11px;padding:11px 14px;font-size:14px;font-weight:600;cursor:pointer}button.primary{background:#315da5;border-color:#477cc9}button.danger{background:#512b36;border-color:#79404e}input,textarea,select{width:100%;background:#0e1628;color:white;border:1px solid var(--line);border-radius:10px;padding:12px;font-size:16px;margin:5px 0 10px}textarea{min-height:78px;resize:vertical}.row{display:flex;gap:8px;align-items:center}.row>*{flex:1}.item{display:flex;align-items:flex-start;gap:10px;border-top:1px solid var(--line);padding:12px 0}.item:first-child{border-top:0}.item .body{flex:1;min-width:0}.item.done .body{text-decoration:line-through;opacity:.55}.item small{display:block;color:var(--muted);margin-top:4px}.item button{padding:7px 9px;font-size:12px}.tabs{display:flex;gap:7px;overflow:auto;padding:6px 0 12px}.tabs button{white-space:nowrap}.hidden{display:none!important}.stat{font-size:26px;font-weight:750}.foot{padding:20px 5px;color:var(--muted);font-size:12px;text-align:center}label{font-size:13px;color:var(--muted)}#toast{position:fixed;bottom:20px;left:14px;right:14px;margin:auto;max-width:500px;background:#203553;padding:12px;border-radius:12px;text-align:center;display:none}
+</style></head><body>
+<header><div><h1>המסך המרכזי</h1><div class="muted" id="today"></div></div><button id="exportTop">גיבוי</button></header>
+<div class="panel"><div class="row"><div><div class="muted">המשימות הפתוחות</div><div class="stat" id="openCount">0</div></div><div><div class="muted">הושלמו</div><div class="stat" id="doneCount">0</div></div><div><div class="muted">שמירה</div><div class="stat" style="color:var(--green)">פעילה</div></div></div></div>
+<div class="grid">
+<div class="tile"><b>✓ משימות</b><span>הוספה, סימון והסרה</span></div><div class="tile"><b>▦ יומן אישי</b><span>אירועים ותאריכים</span></div>
+<div class="tile"><b>☁ מזג אוויר</b><span id="weather">מתחבר לתחזית לפי בקשה</span></div><div class="tile"><b>▤ פתקים</b><span>רעיונות ומידע לשמירה</span></div>
+</div>
+<nav class="tabs"><button data-tab="tasks" class="primary">משימות</button><button data-tab="events">יומן</button><button data-tab="notes">פתקים</button><button data-tab="backup">גיבוי ושחזור</button></nav>
+<section id="tasks" class="panel"><h2>המשימות שלי</h2><form id="taskForm"><input id="taskText" placeholder="מה צריך לעשות?" required><div class="row"><input id="taskDate" type="date" aria-label="תאריך יעד"><button class="primary" type="submit">הוסף משימה</button></div></form><div id="taskList"></div></section>
+<section id="events" class="panel hidden"><h2>יומן אישי</h2><form id="eventForm"><input id="eventText" placeholder="שם האירוע או הפגישה" required><div class="row"><input id="eventDate" type="date" required><input id="eventTime" type="time"></div><button class="primary" type="submit">הוסף ליומן</button></form><div id="eventList"></div><p class="hint">בשלב הראשון זהו יומן פנימי. עדיין לא מחובר ליומן Google או Apple.</p></section>
+<section id="notes" class="panel hidden"><h2>פתקים וזיכרונות</h2><form id="noteForm"><input id="noteTitle" placeholder="כותרת" required><textarea id="noteText" placeholder="מה חשוב לשמור?"></textarea><button class="primary" type="submit">שמור פתק</button></form><div id="noteList"></div></section>
+<section id="backup" class="panel hidden"><h2>גיבוי ושחזור</h2><p>המידע נשמר כרגע בדפדפן של האייפד. אפשר להוריד קובץ גיבוי ולשחזר ממנו.</p><button class="primary" id="exportBtn">הורדת גיבוי מלא</button><label for="importFile">שחזור מקובץ גיבוי</label><input id="importFile" type="file" accept="application/json"><p class="hint">חשוב: מחיקת נתוני Safari או החלפת מכשיר עלולות למחוק מידע מקומי. יש לשמור גיבוי חיצוני.</p></section>
+<div class="foot">גרסת התחלה · נשמר במכשיר הזה · עדיין לא מחובר למקורות חיצוניים</div><div id="toast"></div>
+<script>
+const KEY='central_screen_v1';let data={tasks:[],events:[],notes:[]};
+try{const old=JSON.parse(localStorage.getItem(KEY)||'null');if(old&&typeof old==='object')data={...data,...old}}catch(e){}
+const $=id=>document.getElementById(id);const save=()=>{localStorage.setItem(KEY,JSON.stringify(data));render();toast('נשמר באייפד')};function toast(s){$('toast').textContent=s;$('toast').style.display='block';setTimeout(()=> $('toast').style.display='none',1800)}
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function render(){
+$('openCount').textContent=data.tasks.filter(x=>!x.done).length;$('doneCount').textContent=data.tasks.filter(x=>x.done).length;
+$('taskList').innerHTML=data.tasks.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map(x=>'<div class="item '+(x.done?'done':'')+'"><input type="checkbox" style="width:22px;margin:2px 0" '+(x.done?'checked':'')+' onchange="toggleTask(\''+x.id+'\')"><div class="body">'+esc(x.text)+'<small>'+(x.date?'יעד: '+esc(x.date):'ללא תאריך')+'</small></div><button onclick="editTask(\''+x.id+'\')">ערוך</button><button class="danger" onclick="removeItem(\'tasks\',\''+x.id+'\')">מחק</button></div>').join('')||'<p class="muted">אין עדיין משימות.</p>';
+$('eventList').innerHTML=data.events.slice().sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time)).map(x=>'<div class="item"><div class="body"><b>'+esc(x.text)+'</b><small>'+esc(x.date)+' '+esc(x.time||'')+'</small></div><button onclick="editEvent(\''+x.id+'\')">ערוך</button><button class="danger" onclick="removeItem(\'events\',\''+x.id+'\')">מחק</button></div>').join('')||'<p class="muted">אין אירועים ביומן.</p>';
+$('noteList').innerHTML=data.notes.map(x=>'<div class="item"><div class="body"><b>'+esc(x.title)+'</b><small>'+esc(x.text)+'</small></div><button onclick="editNote(\''+x.id+'\')">ערוך</button><button class="danger" onclick="removeItem(\'notes\',\''+x.id+'\')">מחק</button></div>').join('')||'<p class="muted">אין פתקים שמורים.</p>';
+}
+window.toggleTask=id=>{let x=data.tasks.find(x=>x.id===id);if(x)x.done=!x.done;save()};
+window.removeItem=(kind,id)=>{if(confirm('למחוק את הפריט?')){data[kind]=data[kind].filter(x=>x.id!==id);save()}};
+window.editTask=id=>{let x=data.tasks.find(x=>x.id===id);let t=prompt('עריכת משימה',x.text);if(t!==null&&t.trim()){x.text=t.trim();save()}};
+window.editEvent=id=>{let x=data.events.find(x=>x.id===id);let t=prompt('עריכת אירוע',x.text);if(t!==null&&t.trim()){x.text=t.trim();save()}};
+window.editNote=id=>{let x=data.notes.find(x=>x.id===id);let t=prompt('עריכת פתק',x.text);if(t!==null){x.text=t;save()}};
+$('taskForm').onsubmit=e=>{e.preventDefault();data.tasks.push({id:uid(),text:$('taskText').value.trim(),date:$('taskDate').value,done:false});e.target.reset();save()};
+$('eventForm').onsubmit=e=>{e.preventDefault();data.events.push({id:uid(),text:$('eventText').value.trim(),date:$('eventDate').value,time:$('eventTime').value});e.target.reset();save()};
+$('noteForm').onsubmit=e=>{e.preventDefault();data.notes.push({id:uid(),title:$('noteTitle').value.trim(),text:$('noteText').value});e.target.reset();save()};
+function exportData(){let blob=new Blob([JSON.stringify({format:'central-screen-backup',version:1,exportedAt:new Date().toISOString(),data},null,2)],{type:'application/json'});let a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='central-screen-backup-'+new Date().toISOString().slice(0,10)+'.json';a.click();URL.revokeObjectURL(a.href);toast('קובץ הגיבוי הורד')}
+$('exportBtn').onclick=exportData;$('exportTop').onclick=exportData;
+$('importFile').onchange=async e=>{let f=e.target.files[0];if(!f)return;try{let v=JSON.parse(await f.text());if(!v.data||!Array.isArray(v.data.tasks)||!Array.isArray(v.data.events)||!Array.isArray(v.data.notes))throw Error();if(confirm('השחזור יחליף את המידע הקיים. להמשיך?')){data=v.data;save()}}catch(err){alert('קובץ גיבוי לא תקין')}e.target.value=''};
+document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{document.querySelectorAll('section').forEach(s=>s.classList.add('hidden'));$(b.dataset.tab).classList.remove('hidden');document.querySelectorAll('[data-tab]').forEach(z=>z.classList.toggle('primary',z===b))});
+$('today').textContent=new Intl.DateTimeFormat('he-IL',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(new Date());render();
+</script></body></html>
