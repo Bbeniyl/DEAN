@@ -116,3 +116,11 @@ Only after verified backup, successful acceptance tests, and explicit user appro
 - The source writes/reads an `oauth_tokens` table for TikTok, but the initial table-creation scan of `app.py` did not find a corresponding `CREATE TABLE oauth_tokens`. This is a potential latent defect to reproduce in a test and fix in the migration branch before enabling OAuth.
 - Current-blob pattern scan across the main Python modules and supporting HTML/Python files found no obvious hard-coded OpenAI, Google, GitHub-token, or private-key strings. This is only a quick scan of the current file contents, not the Git history or every branch; it is not a clean bill of health.
 - The source already includes a `test_market.py` test suite. Reuse it and add tests for all DEAN core flows rather than discarding it.
+
+## Render free-database lifecycle finding
+- A read-only lookup of the exact PostgreSQL resource ID seen in the startup error (`dpg-dav0qj3ncjis738n24ng-a`) returned HTTP 404 / not found. It is no longer present as an accessible Postgres resource in this workspace.
+- Render's current official Free plan documentation says Free Postgres databases expire 30 days after creation; they are inaccessible after expiry, have a 14-day grace period to upgrade, and are deleted with their data after that grace period. Free Postgres databases do not support backups.
+- Render also documents that Free web services cannot attach persistent disks and that the default filesystem is ephemeral: files are lost on redeploy or restart.
+- This is consistent with the missing database being an expired/deleted Free Postgres resource, but the database creation/expiry date and billing history were not available from the current account tools. Do not state that the entire Render subscription expired; the DEAN web service itself remains active on the Free plan.
+- The current app's fallback path `/tmp/dean.sqlite3` is not durable. The latest app logs after the 2026-11-19 deployment confirm the same missing PostgreSQL hostname and SQLite fallback. A subsequent deploy/restart may discard this SQLite file.
+- Official Render documentation: https://render.com/docs/free and https://render.com/docs/faq
